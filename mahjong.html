@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>練習用</title>
+    <style>
+        body {
+            font-family: "Segoe UI", sans-serif;
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        #hand {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px;
+        }
+
+        .tile {
+            width: 60px;
+            height: 80px;
+            border: 2px solid #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .tile:hover {
+            transform: translateY(-5px);
+        }
+
+        .newTile {
+            background: #ffe066;
+        }
+
+        /* ツモ牌を強調 */
+        button {
+            margin: 5px;
+            padding: 8px 16px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>練習用</h2>
+    <div id="hand"></div>
+
+    <button id="newBtn">新しく始める</button>
+    <button id="waitBtn">待ち表示</button>
+    <button id="tsumoBtn" style="display:none;">ツモ！</button>
+
+    <div id="message"></div>
+    <div id="yamaInfo"></div>
+
+    <script>
+        const tiles = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let hand = [];
+        let lastDraw = null;
+        let yama = [];
+        let gameOver = false; // ← ツモ後に考察するため
+
+        function resetYama() {
+            yama = [];
+            for (let i = 1; i <= 9; i++) for (let j = 0; j < 4; j++) yama.push(i);
+            shuffle(yama);
+        }
+
+        function shuffle(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+        }
+
+        function initHand() {
+            resetYama();
+            hand = [];
+            lastDraw = null;
+            gameOver = false;
+            for (let i = 0; i < 4; i++) hand.push(yama.pop());
+            drawTile(); // 最初のツモ
+            document.getElementById("tsumoBtn").style.display = "none";
+            document.getElementById("message").textContent = "";
+            renderHand();
+            updateYamaInfo();
+        }
+
+        function renderHand() {
+            const div = document.getElementById("hand");
+            div.innerHTML = "";
+
+            // ソートされた4枚＋ツモ牌（右端）
+            let displayTiles = [...hand];
+            if (lastDraw) {
+                const others = hand.slice(0, hand.length - 1).sort((a, b) => a - b);
+                displayTiles = [...others, lastDraw];
+            } else {
+                displayTiles.sort((a, b) => a - b);
+            }
+
+            displayTiles.forEach((t, i) => {
+                const isLast = (lastDraw && i === displayTiles.length - 1);
+                const el = document.createElement("div");
+                el.className = "tile" + (isLast ? " newTile" : "");
+                el.textContent = t + "萬";
+                el.onclick = () => discardTile(i, displayTiles);
+                div.appendChild(el);
+            });
+
+            checkAgari();
+            updateYamaInfo();
+        }
+
+        function discardTile(index, displayTiles) {
+            if (gameOver) return; // 上がり後は何もしない
+            if (hand.length !== 5) return;
+            const clicked = displayTiles[index];
+            const idx = hand.indexOf(clicked);
+            if (idx !== -1) hand.splice(idx, 1);
+            lastDraw = null;
+            document.getElementById("message").textContent = "";
+            renderHand();
+            drawTile(); // ← 自動でツモ
+        }
+
+        function drawTile() {
+            if (hand.length >= 5) return;
+            if (yama.length === 0) {
+                document.getElementById("message").textContent = "🌊 流局（山が尽きた）";
+                gameOver = true;
+                return;
+            }
+            const t = yama.pop();
+            hand.push(t);
+            lastDraw = t;
+            renderHand();
+        }
+
+        // 上がり判定：頭(2枚)＋順子or刻子
+        function checkAgari() {
+            if (hand.length !== 5) return;
+            const sorted = [...hand].sort((a, b) => a - b);
+            for (let i = 0; i < sorted.length - 1; i++) {
+                if (sorted[i] === sorted[i + 1]) {
+                    const rest = sorted.filter((_, idx) => idx !== i && idx !== i + 1);
+                    if (
+                        (rest[1] === rest[0] + 1 && rest[2] === rest[1] + 1) || // 順子
+                        (rest[0] === rest[1] && rest[1] === rest[2])        // 刻子
+                    ) {
+                        document.getElementById("tsumoBtn").style.display = "inline";
+                        return;
+                    }
+                }
+            }
+            document.getElementById("tsumoBtn").style.display = "none";
+        }
+
+        // 待ち牌表示（ツモ牌を除いた4枚で判定）
+        function showWait() {
+            if (gameOver) return;
+            let baseTiles = [...hand];
+            if (lastDraw) baseTiles = baseTiles.slice(0, baseTiles.length - 1);
+            if (baseTiles.length !== 4) {
+                document.getElementById("message").textContent = "※4枚のときに押してね";
+                return;
+            }
+            const waits = [];
+            for (let t of tiles) {
+                const counts = {};
+                baseTiles.forEach(x => counts[x] = (counts[x] || 0) + 1);
+                if ((counts[t] || 0) >= 4) continue;
+                const test = [...baseTiles, t].sort((a, b) => a - b);
+                for (let i = 0; i < test.length - 1; i++) {
+                    if (test[i] === test[i + 1]) {
+                        const rest = test.filter((_, idx) => idx !== i && idx !== i + 1);
+                        if (
+                            (rest[1] === rest[0] + 1 && rest[2] === rest[1] + 1) ||
+                            (rest[0] === rest[1] && rest[1] === rest[2])
+                        ) {
+                            waits.push(t);
+                            break;
+                        }
+                    }
+                }
+            }
+            document.getElementById("message").textContent =
+                waits.length ? `待ち牌：${waits.join("萬・")}萬` : "テンパイしていません";
+        }
+
+        function updateYamaInfo() {
+            document.getElementById("yamaInfo").textContent = `残り山：${yama.length}枚`;
+        }
+
+        document.getElementById("tsumoBtn").onclick = () => {
+            document.getElementById("message").textContent = "🀄 SEX！";
+            document.getElementById("tsumoBtn").style.display = "none";
+            gameOver = true; // ← ここで止める（考察タイム）
+        };
+        document.getElementById("waitBtn").onclick = showWait;
+        document.getElementById("newBtn").onclick = initHand;
+
+        initHand();
+    </script>
+</body>
+
+</html>
