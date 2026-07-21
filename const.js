@@ -8,13 +8,52 @@ var classR2ml = "BgBlue02";
 var classR3ml = "BgOrange";
 
 var corseHidari = ["東京", "中京", "新潟", "盛岡", "船橋", "浦和", "川崎"];
-var raceRank = [["新馬", 0], ["未勝利", 1], ["1勝", 2], ["500万", 2], ["2勝", 3], ["1000万", 3], ["3勝", 4], ["1600万", 4], ["OP", 5], ["L", 6], ["GIII", 7], ["GII", 8], ["GI", 9]];
-var corseUchi = [["中山", "芝1800"], ["中山", "芝2000"], ["中山", "芝2500"], ["中山", "芝3200"],
-["阪神", "芝1200"],
-["阪神", "芝1400"], ["阪神", "芝2000"], ["阪神", "芝2200"], ["阪神", "芝3000"],
-["京都", "芝1200"], ["京都", "芝2000"], ["京都", "芝2200"], ["京都", "芝3000"],
-["新潟", "芝1200"], ["新潟", "芝1400"], ["新潟", "芝2200"], ["新潟", "芝2400"]];
-var corseJRA = ["東京", "中京", "新潟", "中山", "福島", "函館", "札幌", "阪神", "京都", "小倉"];
+var raceRank = [
+  ["新馬", 0],
+  ["未勝利", 1],
+  ["1勝", 2],
+  ["500万", 2],
+  ["2勝", 3],
+  ["1000万", 3],
+  ["3勝", 4],
+  ["1600万", 4],
+  ["OP", 5],
+  ["L", 6],
+  ["GIII", 7],
+  ["GII", 8],
+  ["GI", 9],
+];
+var corseUchi = [
+  ["中山", "芝1800"],
+  ["中山", "芝2000"],
+  ["中山", "芝2500"],
+  ["中山", "芝3200"],
+  ["阪神", "芝1200"],
+  ["阪神", "芝1400"],
+  ["阪神", "芝2000"],
+  ["阪神", "芝2200"],
+  ["阪神", "芝3000"],
+  ["京都", "芝1200"],
+  ["京都", "芝2000"],
+  ["京都", "芝2200"],
+  ["京都", "芝3000"],
+  ["新潟", "芝1200"],
+  ["新潟", "芝1400"],
+  ["新潟", "芝2200"],
+  ["新潟", "芝2400"],
+];
+var corseJRA = [
+  "東京",
+  "中京",
+  "新潟",
+  "中山",
+  "福島",
+  "函館",
+  "札幌",
+  "阪神",
+  "京都",
+  "小倉",
+];
 
 var colDa = "gold";
 var colSyo = "hotpink";
@@ -66,10 +105,12 @@ var timeIndex = null;
 var course = null;
 
 var raceDate = null;
-var totalMap = null;
 
 function getIndex(html, colName) {
-  return $(html).find('.db_h_race_results').find('th:contains(' + colName + ')').index();
+  return $(html)
+    .find(".db_h_race_results")
+    .find("th:contains(" + colName + ")")
+    .index();
 }
 
 function setIndex(html) {
@@ -77,10 +118,10 @@ function setIndex(html) {
   if (kyoriIndex != null && kyoriIndex > 0) {
     return;
   }
-  kyoriIndex = 14;//getIndex(html,"距離");
+  kyoriIndex = 14; //getIndex(html,"距離");
   tyakuIndex = getIndex(html, "着順");
   raceIndex = getIndex(html, "レース名");
-  corseIndex = 1;//getIndex(html,"開催");
+  corseIndex = 1; //getIndex(html,"開催");
   babaIndex = getIndex(html, "馬場");
   agariIndex = getIndex(html, "上り");
   tuukaIndex = getIndex(html, "通過");

@@ -65,29 +65,6 @@ async function ajax(linkUrl) {
   });
 }
 
-function setItem(linkUrl, cachedData) {
-  try {
-    localStorage.setItem(linkUrl, JSON.stringify(cachedData));
-  } catch (e) {
-    if (
-      e.name === "QuotaExceededError" ||
-      e.name === "NS_ERROR_DOM_QUOTA_REACHED"
-    ) {
-      console.warn("Quota exceeded, clearing localStorage and retrying...");
-      localStorage.clear();
-
-      try {
-        // 再挑戦（1回だけ）
-        localStorage.setItem(linkUrl, JSON.stringify(cachedData));
-      } catch (e2) {
-        console.error("Retry failed after clearing localStorage", e2);
-      }
-    } else {
-      console.error("localStorage error:", e);
-    }
-  }
-}
-
 async function loadHorseHtmlMap() {
   try {
     const res = await fetch("http://localhost:5000/all");
@@ -108,38 +85,6 @@ async function loadHorseHtmlMap() {
   } catch (e) {
     console.error("❌ horseHtmlMap の読み込みに失敗:", e);
     return {};
-  }
-}
-
-function decodeHtml(encodedHtml) {
-  try {
-    // URL-safe Base64 → 標準 Base64
-    let base64 = encodedHtml
-      .replace(/\s+/g, "") // 空白・改行除去
-      .replace(/-/g, "+")
-      .replace(/_/g, "/");
-
-    // パディング調整
-    while (base64.length % 4) base64 += "=";
-
-    // Base64 → Uint8Array
-    const binaryString = atob(base64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-
-    // gzip 解凍 → UTF-8
-    const decoded = new TextDecoder("utf-8", { fatal: false }).decode(
-      pako.ungzip(bytes),
-    );
-
-    // 制御文字を除去
-    return decoded.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
-  } catch (e) {
-    console.error("decodeHtml error:", e);
-    return "";
   }
 }
 
@@ -338,23 +283,6 @@ async function sonogo() {
     const seisekiVal = getSonogoSeisekiVal(html, raceDate);
     addSeiseki($("#sonogoTd" + index), seisekiVal);
   }
-}
-
-// その後
-function sonogoFunc(a, index) {
-  const horse = a.eq(index);
-  const href = horse.attr("href");
-  const match = href.match(/horse\/([A-Za-z0-9\-]+)/);
-  if (!match) {
-    console.warn("馬IDが取れませんでした:", href);
-    return;
-  }
-  const horseId = match[1].trim();
-  const html = getHtmlFromMap(horseId);
-  setIndex(html);
-  changeResultTableDtl(a, index);
-  const seisekiVal = getSonogoSeisekiVal(html, raceDate);
-  addSeiseki($("#sonogoTd" + index), seisekiVal);
 }
 
 //血統

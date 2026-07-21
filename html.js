@@ -122,11 +122,6 @@ function changeResultTableHd() {
   table.find('th:contains("馬名")').after(sonogoTh);
 }
 
-// function changeResultTableDtl(a, index) {
-//   var sonogoTd = $("<td>", { id: "sonogoTd" + index });
-//   a.closest("tr").find("td:eq(3)").after(sonogoTd);
-// }
-
 function changeResultTableDtl(a, index) {
   var sonogoTd = $("<td>", { id: "sonogoTd" + index });
   a.closest("td").after(sonogoTd);
