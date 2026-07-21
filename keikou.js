@@ -11,7 +11,6 @@
 // @require https://cdnjs.cloudflare.com/ajax/libs/jquery.tablesorter/2.31.3/js/jquery.tablesorter.min.js
 // @require https://raw.githubusercontent.com/fr000456/ore/main/common.js
 // @require https://raw.githubusercontent.com/fr000456/ore/main/const.js
-// @require https://raw.githubusercontent.com/fr000456/ore/main/html.js
 // ==/UserScript==
 
 // jQuery を安全に取り込む
