@@ -5,8 +5,8 @@
 // @description  netkeiba馬ページ拡張
 // @include      https://db.netkeiba.com/horse/*
 // @require      https://code.jquery.com/jquery-3.6.0.min.js
-// @require      https://gist.githubusercontent.com/fr000456/d9c0f4a161df409d303683b51410b619/raw/1010552bdaee26fd710ec3fabe0c0b7db7558cc0/const
-// @require      https://gist.githubusercontent.com/fr000456/cc4230bcd2f1da38e70d65fffb46c73a/raw/6890ac0cfc3550724c9710446c115d9d600c9826/common
+// @require      https://raw.githubusercontent.com/fr000456/ore/main/const.js
+// @require      https://raw.githubusercontent.com/fr000456/ore/main/common.js
 // @grant       GM.xmlHttpRequest
 // @connect     localhost
 // @connect     127.0.0.1

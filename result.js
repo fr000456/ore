@@ -6,9 +6,9 @@
 // @connect      localhost
 // @connect      127.0.0.1
 // @require      https://code.jquery.com/jquery-3.6.0.min.js
-// @require      https://gist.githubusercontent.com/fr000456/d9c0f4a161df409d303683b51410b619/raw/1e7b38b633ac5700d99ded1254570ad7069e93b6/const
-// @require      https://gist.githubusercontent.com/fr000456/cc4230bcd2f1da38e70d65fffb46c73a/raw/c972fa7c3eeff4ffec5cee4ddbd7c2aa8a0346a1/common
-// @require      https://gist.githubusercontent.com/fr000456/84bbff4bc370aba05010f53380597adb/raw/c9c60d6a820571616b4bfcfbd74849ce5fc895f1/html
+// @require      https://raw.githubusercontent.com/fr000456/ore/main/const.js
+// @require      https://raw.githubusercontent.com/fr000456/ore/main/common.js
+// @require      https://raw.githubusercontent.com/fr000456/ore/main/html.js
 // ==/UserScript==
 
 (function () {
