@@ -192,25 +192,25 @@
   }
 
   function bindFunc() {
-    $("#kaiseki").bind("click", function () {
+    $("#kaiseki").on("click", function () {
       kaiseki(funcKaiseki);
     });
-    $("#baba").bind("click", function () {
+    $("#baba").on("click", function () {
       baba();
     });
-    $("#tekisei").bind("click", function () {
+    $("#tekisei").on("click", function () {
       kaiseki(funcTekisei);
     });
-    $("#kettou").bind("click", function () {
+    $("#kettou").on("click", function () {
       kettou();
     });
-    $("#rota").bind("click", function () {
+    $("#rota").on("click", function () {
       rota();
     });
-    $("#uchi").bind("click", function () {
+    $("#uchi").on("click", function () {
       uchi();
     });
-    $("#bikou").bind("click", function () {
+    $("#bikou").on("click", function () {
       biko();
     });
 
@@ -219,13 +219,13 @@
       .append('<input type="button" value="ボールドルーラ―" id="bold">')
       .append('<input type="button" value="Vice Regent" id="vice">')
       .append('<input type="button" value="Danzig" id="danzig">');
-    $("#bold").bind("click", function () {
+    $("#bold").on("click", function () {
       bold();
     });
-    $("#vice").bind("click", function () {
+    $("#vice").on("click", function () {
       vice();
     });
-    $("#danzig").bind("click", function () {
+    $("#danzig").on("click", function () {
       danzig();
     });
   }
@@ -259,8 +259,12 @@
     }
   }
 
+  function parseRaceData(html) {
+    return $("<div>").html(html).find("#data").find("tbody").find("tr");
+  }
+
   function rotation(html, a, index) {
-    const data = $("<div>").html(html).find("#data").find("tbody").find("tr");
+    const data = parseRaceData(html);
 
     let yasumi = [0, 0, 0, 0];
     let futu = [0, 0, 0, 0];
@@ -334,7 +338,7 @@
   }
 
   function babakaiseki(html, a, index) {
-    const data = $("<div>").html(html).find("#data").find("tbody").find("tr");
+    const data = parseRaceData(html);
 
     let seisekiVal = [0, 0, 0, 0];
     const babaVal = ["", "", "", ""];
@@ -357,7 +361,7 @@
   }
 
   function uchimawari(html, index) {
-    const data = $("<div>").html(html).find("#data").find("tbody").find("tr");
+    const data = parseRaceData(html);
 
     if (data.length == 0) {
       return false;
@@ -380,7 +384,7 @@
   }
 
   function bikou(html, index) {
-    const data = $("<div>").html(html).find("#data").find("tbody").find("tr");
+    const data = parseRaceData(html);
     if (data.length == 0) {
       return false;
     }
@@ -392,7 +396,7 @@
   }
 
   function tekisei(html, index) {
-    const data = $("<div>").html(html).find("#data").find("tbody").find("tr");
+    const data = parseRaceData(html);
 
     if (data.length == 0) {
       return false;
@@ -560,7 +564,7 @@
   }
 
   function doKaiseki(html, a) {
-    const data = $("<div>").html(html).find("#data").find("tbody").find("tr");
+    const data = parseRaceData(html);
 
     let hatsuFlg = true;
     let syougaiFlg = false;
