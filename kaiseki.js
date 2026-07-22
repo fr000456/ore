@@ -154,13 +154,9 @@
 
   function changeCss() {
     $(".HorseList td").css(horseCss);
-    // $('tr.HorseList').removeClass('HorseList');
     $(".HorseInfo").removeClass("HorseInfo");
-    // $('.Selected').removeClass('Selected');
-    // $('.NoSelected').removeClass('NoSelected');
     $(".Jockey").removeClass("Jockey");
     $(".Trainer").removeClass("Trainer");
-    // $('.Popular').removeClass("Popular");
     $(".selectBox").removeClass("selectBox");
 
     $(".Shutuba_Table")
@@ -335,7 +331,7 @@
       { id: "#ryou", val: "良", index: 0 },
       { id: "#yaya", val: "稍", index: 1 },
       { id: "#omo", val: "重", index: 2 },
-      { id: "#fu", val: "不", index: 3 }
+      { id: "#fu", val: "不", index: 3 },
     ];
 
     babaMap.forEach(({ id, val, index: idx }) => {
@@ -431,9 +427,9 @@
     const color = td.eq(agariIndex).attr("class");
 
     const colorMap = {
-      "rank_1": classR1ml,
-      "rank_2": classR2ml,
-      "rank_3": classR3ml
+      rank_1: classR1ml,
+      rank_2: classR2ml,
+      rank_3: classR3ml,
     };
 
     const cssClass = colorMap[color?.trim()];
@@ -565,14 +561,14 @@
       syougai: syougai(data),
       syoukyu: data.length > 1 ? syoukyu(data) : false,
       kyori: kyori(data),
-      tataki: tataki(data, raceDate)
+      tataki: tataki(data, raceDate),
     };
   }
 
   function addMarks(a, flags) {
     if (flags.syougai) addMark(a, txtSyougai, colSyougai);
     if (flags.kyori) addMark(a, txtKyori, colKyori);
-    
+
     let tatakiFlg = flags.tataki;
     if (tatakiFlg < 0) {
       addMark(a, txtRen, colRen); //連闘
@@ -596,7 +592,7 @@
         break; //三走目
     }
     addTatakiHtml(a, tatakiFlg);
-    
+
     if (flags.syoukyu) addMark(a, txtSyo, colSyo);
     if (flags.hatsu) addMark(a, txtHatsu, colHatsu);
     if (flags.dirt) addMark(a, txtDa, colDa);
