@@ -74,38 +74,38 @@
 
   waitForElement("#AllRaceSubMenu, #shutuba_menu", initPageWrapper);
 
-  var prevDate = null;
-  var kyoriVal = null;
-  var corseVal = null;
+  let prevDate = null;
+  let kyoriVal = null;
+  let corseVal = null;
 
   //functionたち
-  var initFunc = function (html, a, index) {
+  const initFunc = function (html, a, index) {
     changeTableDtl(a, index);
   };
 
-  var funcKaiseki = function (html, a, index) {
+  const funcKaiseki = function (html, a, index) {
     doKaiseki(html, a);
   };
 
-  var funcTekisei = function (html, a, index) {
+  const funcTekisei = function (html, a, index) {
     setVal();
     tekisei(html, index);
     return Promise.resolve();
   };
 
-  var funcBaba = function (html, a, index) {
+  const funcBaba = function (html, a, index) {
     babakaiseki(html, a, index);
   };
 
-  var funcRota = function (html, a, index) {
+  const funcRota = function (html, a, index) {
     rotation(html, a, index);
   };
 
-  var funcUchi = function (html, a, index) {
+  const funcUchi = function (html, a, index) {
     uchimawari(html, index);
   };
 
-  var funcBikou = function (html, a, index) {
+  const funcBikou = function (html, a, index) {
     bikou(html, index);
   };
 
@@ -130,7 +130,7 @@
   }
 
   //css
-  var horseCss = {
+  const horseCss = {
     "border-collapse": "separate",
     "border-spacing": "1px",
     border: "solid 1px #999",
@@ -142,7 +142,7 @@
     "white-space": "nowrap",
   };
 
-  var hoverCss = {
+  const hoverCss = {
     "font-size": "20px",
     background: "#fdf2c1",
     border: "2px solid #fdf2c1",
@@ -281,19 +281,19 @@
   }
 
   function rotation(html, a, index) {
-    var data = $("<div>").html(html).find("#data").find("tbody").find("tr");
+    const data = $("<div>").html(html).find("#data").find("tbody").find("tr");
 
-    var yasumi = [0, 0, 0, 0];
-    var futu = [0, 0, 0, 0];
-    var ni = [0, 0, 0, 0];
-    var san = [0, 0, 0, 0];
-    var tukai = [0, 0, 0, 0];
-    var count = 0;
-    var pDate = null;
+    let yasumi = [0, 0, 0, 0];
+    let futu = [0, 0, 0, 0];
+    let ni = [0, 0, 0, 0];
+    let san = [0, 0, 0, 0];
+    let tukai = [0, 0, 0, 0];
+    let count = 0;
+    let pDate = null;
 
-    for (var i = data.length - 1; i >= 0; i--) {
-      var tr = data.eq(i);
-      var date = tr
+    for (let i = data.length - 1; i >= 0; i--) {
+      const tr = data.eq(i);
+      const date = tr
         .find("td")
         .eq(hidukeIndex)
         .text()
@@ -346,7 +346,7 @@
   }
 
   function addTatakiHtml(a, tatakiFlg) {
-    var tatakiHidden = $("<input></input>", {
+    const tatakiHidden = $("<input></input>", {
       type: "hidden",
       id: "tataki",
       value: tatakiFlg,
@@ -355,10 +355,10 @@
   }
 
   function babakaiseki(html, a, index) {
-    var data = $("<div>").html(html).find("#data").find("tbody").find("tr");
+    const data = $("<div>").html(html).find("#data").find("tbody").find("tr");
 
-    var seisekiVal = [0, 0, 0, 0];
-    var babaVal = ["", "", "", ""];
+    let seisekiVal = [0, 0, 0, 0];
+    const babaVal = ["", "", "", ""];
 
     if ($("#ryou").prop("checked")) {
       babaVal[0] = "良";
@@ -378,21 +378,21 @@
   }
 
   function uchimawari(html, index) {
-    var data = $("<div>").html(html).find("#data").find("tbody").find("tr");
+    const data = $("<div>").html(html).find("#data").find("tbody").find("tr");
 
     if (data.length == 0) {
       return false;
     }
 
-    var seisekiVal = [0, 0, 0, 0];
+    let seisekiVal = [0, 0, 0, 0];
 
-    for (var i = 0; i < corseUchi.length; i++) {
-      var tgtTr = data
+    for (let i = 0; i < corseUchi.length; i++) {
+      const tgtTr = data
         .find("td:eq(" + corseIndex + "):contains(" + corseUchi[i][0] + ")")
         .parent()
         .find("td:eq(" + kyoriIndex + "):contains(" + corseUchi[i][1] + ")")
         .parent();
-      for (var j = 0; j < tgtTr.length; j++) {
+      for (let j = 0; j < tgtTr.length; j++) {
         seisekiVal = getTyakujun(seisekiVal, tgtTr.eq(j));
       }
     }
@@ -401,26 +401,26 @@
   }
 
   function bikou(html, index) {
-    var data = $("<div>").html(html).find("#data").find("tbody").find("tr");
+    const data = $("<div>").html(html).find("#data").find("tbody").find("tr");
     if (data.length == 0) {
       return false;
     }
 
-    var td = data.find("td");
-    var bikouVal = td.eq(bikouIndex).html();
+    const td = data.find("td");
+    const bikouVal = td.eq(bikouIndex).html();
 
     $("#bikouTd" + index).text(bikouVal.replace(/&nbsp;/g, ""));
   }
 
   function tekisei(html, index) {
-    var data = $("<div>").html(html).find("#data").find("tbody").find("tr");
+    const data = $("<div>").html(html).find("#data").find("tbody").find("tr");
 
     if (data.length == 0) {
       return false;
     }
-    var seisekiVal = [0, 0, 0, 0];
+    let seisekiVal = [0, 0, 0, 0];
 
-    var hidariSeisekiVal = getSeisekiVal(data, corseIndex, corseHidari);
+    const hidariSeisekiVal = getSeisekiVal(data, corseIndex, corseHidari);
     //左回り
     if (corseHidari.includes(corseVal)) {
       addSeiseki($("#hidariTd" + index), hidariSeisekiVal);
@@ -452,9 +452,9 @@
   }
 
   function addTuuka(tgt, data) {
-    var td = $(data).eq(0).find("td");
-    var tuukaVal = td.eq(tuukaIndex).html();
-    var color = td.eq(agariIndex).attr("class");
+    const td = $(data).eq(0).find("td");
+    const tuukaVal = td.eq(tuukaIndex).html();
+    const color = td.eq(agariIndex).attr("class");
 
     if (color?.trim() == "rank_1") {
       tgt.text(tuukaVal).addClass(classR1ml);
@@ -468,13 +468,13 @@
   }
 
   function tataki(data) {
-    var ren = 1;
-    for (var index = 0; index < 4; index++) {
+    let ren = 1;
+    for (let index = 0; index < 4; index++) {
       if (index == data.length) {
         return 0;
       }
-      var tr = data.eq(index);
-      var date = tr
+      const tr = data.eq(index);
+      const date = tr
         .find("td")
         .eq(hidukeIndex)
         .text()
@@ -527,7 +527,7 @@
   }
 
   function kyori(data) {
-    var kyoriStr = $(".RaceData01").find("span").eq(0).text().slice(1, -1);
+    const kyoriStr = $(".RaceData01").find("span").eq(0).text().slice(1, -1);
     //前走が同距離ではない
     if (data.eq(0).find("td").eq(kyoriIndex).text() != kyoriStr) {
       return false;
@@ -566,13 +566,13 @@
   }
 
   function getRaceDate() {
-    var title = $("title").text();
-    var year = title.substr(title.lastIndexOf("年") - 4, 4);
-    var month = title.slice(
+    const title = $("title").text();
+    const year = title.substr(title.lastIndexOf("年") - 4, 4);
+    const month = title.slice(
       title.lastIndexOf("年") + 1,
       title.lastIndexOf("月"),
     );
-    var date = title.slice(
+    const date = title.slice(
       title.lastIndexOf("月") + 1,
       title.lastIndexOf("日"),
     );
@@ -581,14 +581,14 @@
   }
 
   function doKaiseki(html, a) {
-    var data = $("<div>").html(html).find("#data").find("tbody").find("tr");
+    const data = $("<div>").html(html).find("#data").find("tbody").find("tr");
 
-    var hatsuFlg = true;
-    var syougaiFlg = false;
-    var tatakiFlg = -1;
-    var dirtFlg = false;
-    var syoukyuFlg = false;
-    var kyoriFlg = false;
+    let hatsuFlg = true;
+    let syougaiFlg = false;
+    let tatakiFlg = -1;
+    let dirtFlg = false;
+    let syoukyuFlg = false;
+    let kyoriFlg = false;
 
     prevDate = getRaceDate(); //レース当日
 
@@ -608,7 +608,7 @@
     //障害二戦目
     syougaiFlg = syougai(data);
 
-    var size = data.length;
+    const size = data.length;
     //昇級二戦目
     if (size > 1) {
       syoukyuFlg = syoukyu(data);
