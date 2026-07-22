@@ -331,18 +331,18 @@
     let seisekiVal = [0, 0, 0, 0];
     const babaVal = ["", "", "", ""];
 
-    if ($("#ryou").prop("checked")) {
-      babaVal[0] = "良";
-    }
-    if ($("#yaya").prop("checked")) {
-      babaVal[1] = "稍";
-    }
-    if ($("#omo").prop("checked")) {
-      babaVal[2] = "重";
-    }
-    if ($("#fu").prop("checked")) {
-      babaVal[3] = "不";
-    }
+    const babaMap = [
+      { id: "#ryou", val: "良", index: 0 },
+      { id: "#yaya", val: "稍", index: 1 },
+      { id: "#omo", val: "重", index: 2 },
+      { id: "#fu", val: "不", index: 3 }
+    ];
+
+    babaMap.forEach(({ id, val, index: idx }) => {
+      if ($(id).prop("checked")) {
+        babaVal[idx] = val;
+      }
+    });
 
     seisekiVal = getSeisekiVal(data, babaIndex, babaVal);
     addSeiseki($("#babaTd" + index), seisekiVal);
@@ -430,12 +430,15 @@
     const tuukaVal = td.eq(tuukaIndex).html();
     const color = td.eq(agariIndex).attr("class");
 
-    if (color?.trim() == "rank_1") {
-      tgt.text(tuukaVal).addClass(classR1ml);
-    } else if (color?.trim() == "rank_2") {
-      tgt.text(tuukaVal).addClass(classR2ml);
-    } else if (color?.trim() == "rank_3") {
-      tgt.text(tuukaVal).addClass(classR3ml);
+    const colorMap = {
+      "rank_1": classR1ml,
+      "rank_2": classR2ml,
+      "rank_3": classR3ml
+    };
+
+    const cssClass = colorMap[color?.trim()];
+    if (cssClass) {
+      tgt.text(tuukaVal).addClass(cssClass);
     } else {
       tgt.text(tuukaVal);
     }
