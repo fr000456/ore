@@ -2,6 +2,8 @@
 // @name         kaiseki
 // @namespace    http://tampermonkey.net/
 // @version      0.1
+// @updateURL   https://raw.githubusercontent.com/fr000456/ore/main/kaiseki.js
+// @downloadURL https://raw.githubusercontent.com/fr000456/ore/main/kaiseki.js
 // @match        https://race.netkeiba.com/race/shutuba.html*
 // @match        https://nar.netkeiba.com/race/shutuba.html*
 // @match        https://race.netkeiba.com/race/shutuba_abroad.html*
