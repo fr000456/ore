@@ -126,3 +126,21 @@ function changeResultTableDtl(a, index) {
   var sonogoTd = $("<td>", { id: "sonogoTd" + index });
   a.closest("td").after(sonogoTd);
 }
+
+const horseCss = {
+  "border-collapse": "separate",
+  "border-spacing": "1px",
+  border: "solid 1px #999",
+  padding: "1px 3px",
+  "line-height": "1.5",
+  width: "auto",
+  height: "auto",
+  "font-size": "13px",
+  "white-space": "nowrap",
+};
+
+const hoverCss = {
+  "font-size": "20px",
+  background: "#fdf2c1",
+  border: "2px solid #fdf2c1",
+};

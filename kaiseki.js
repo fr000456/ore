@@ -129,25 +129,6 @@
     kaiseki(funcBikou);
   }
 
-  //css
-  const horseCss = {
-    "border-collapse": "separate",
-    "border-spacing": "1px",
-    border: "solid 1px #999",
-    padding: "1px 3px",
-    "line-height": "1.5",
-    width: "auto",
-    height: "auto",
-    "font-size": "13px",
-    "white-space": "nowrap",
-  };
-
-  const hoverCss = {
-    "font-size": "20px",
-    background: "#fdf2c1",
-    border: "2px solid #fdf2c1",
-  };
-
   function initPage() {
     //ボタン追加
     addButton();
@@ -236,10 +217,6 @@
       .append('<input type="button" value="ボールドルーラ―" id="bold">')
       .append('<input type="button" value="Vice Regent" id="vice">')
       .append('<input type="button" value="Danzig" id="danzig">');
-
-    $("#kettou").bind("click", function () {
-      kettou();
-    });
     $("#bold").bind("click", function () {
       bold();
     });
