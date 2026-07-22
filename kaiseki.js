@@ -76,10 +76,6 @@
 
   waitForElement("#AllRaceSubMenu, #shutuba_menu", initPageWrapper);
 
-  let prevDate = null;
-  let kyoriVal = null;
-  let corseVal = null;
-
   //functionたち
   const initFunc = function (html, a, index) {
     changeTableDtl(a, index);
@@ -90,7 +86,6 @@
   };
 
   const funcTekisei = function (html, a, index) {
-    setVal();
     tekisei(html, index);
     return Promise.resolve();
   };
@@ -138,8 +133,6 @@
     bindFunc();
     //定数設定
     setConst();
-    //変数設定
-    setVal();
     changeTableHd();
     kaiseki(initFunc);
 
@@ -157,11 +150,6 @@
       console.log(`🗑️ horseHtmlCache を ${count} 件削除`);
       alert(`horseHtmlCache を ${count} 件削除しました`);
     });
-  }
-
-  function setVal() {
-    kyoriVal = $("#kyori").val();
-    corseVal = $("#corse").val();
   }
 
   function changeCss() {
@@ -403,6 +391,9 @@
     }
     let seisekiVal = [0, 0, 0, 0];
 
+    const kyoriVal = $("#kyori").val();
+    const corseVal = $("#corse").val();
+
     const hidariSeisekiVal = getSeisekiVal(data, corseIndex, corseHidari);
     //左回り
     if (corseHidari.includes(corseVal)) {
@@ -450,8 +441,9 @@
     }
   }
 
-  function tataki(data) {
+  function tataki(data, raceDate) {
     let ren = 1;
+    let prevDate = raceDate;
     for (let index = 0; index < 4; index++) {
       if (index == data.length) {
         return 0;
@@ -563,50 +555,22 @@
     return [year, month, date];
   }
 
-  function doKaiseki(html, a) {
-    const data = parseRaceData(html);
+  function analyzeRaceData(data, raceDate) {
+    return {
+      hatsu: hatsu(data),
+      dirt: dirt(data),
+      syougai: syougai(data),
+      syoukyu: data.length > 1 ? syoukyu(data) : false,
+      kyori: kyori(data),
+      tataki: tataki(data, raceDate)
+    };
+  }
 
-    let hatsuFlg = true;
-    let syougaiFlg = false;
-    let tatakiFlg = -1;
-    let dirtFlg = false;
-    let syoukyuFlg = false;
-    let kyoriFlg = false;
-
-    prevDate = getRaceDate(); //レース当日
-
-    a.find("td").remove();
-    a.find("img").remove();
-
-    if (data.length == 0) {
-      addMark(a, txtHatsu, colHatsu);
-      banushi(html, a);
-      return false;
-    }
-
-    //初コース
-    hatsuFlg = hatsu(data);
-    //ダート二戦目
-    dirtFlg = dirt(data);
-    //障害二戦目
-    syougaiFlg = syougai(data);
-
-    const size = data.length;
-    //昇級二戦目
-    if (size > 1) {
-      syoukyuFlg = syoukyu(data);
-    }
-    //距離二戦目
-    kyoriFlg = kyori(data);
-    //叩き
-    tatakiFlg = tataki(data);
-
-    if (syougaiFlg) {
-      addMark(a, txtSyougai, colSyougai);
-    }
-    if (kyoriFlg) {
-      addMark(a, txtKyori, colKyori);
-    }
+  function addMarks(a, flags) {
+    if (flags.syougai) addMark(a, txtSyougai, colSyougai);
+    if (flags.kyori) addMark(a, txtKyori, colKyori);
+    
+    let tatakiFlg = flags.tataki;
     if (tatakiFlg < 0) {
       addMark(a, txtRen, colRen); //連闘
       tatakiFlg = tatakiFlg * -1;
@@ -629,16 +593,27 @@
         break; //三走目
     }
     addTatakiHtml(a, tatakiFlg);
-    if (syoukyuFlg) {
-      addMark(a, txtSyo, colSyo);
-    }
-    if (hatsuFlg) {
+    
+    if (flags.syoukyu) addMark(a, txtSyo, colSyo);
+    if (flags.hatsu) addMark(a, txtHatsu, colHatsu);
+    if (flags.dirt) addMark(a, txtDa, colDa);
+  }
+
+  function doKaiseki(html, a) {
+    const data = parseRaceData(html);
+    const raceDate = getRaceDate();
+
+    a.find("td").remove();
+    a.find("img").remove();
+
+    if (data.length == 0) {
       addMark(a, txtHatsu, colHatsu);
-    }
-    if (dirtFlg) {
-      addMark(a, txtDa, colDa);
+      banushi(html, a);
+      return false;
     }
 
+    const flags = analyzeRaceData(data, raceDate);
+    addMarks(a, flags);
     banushi(html, a);
   }
 })(jQuery);
