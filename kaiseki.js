@@ -443,6 +443,7 @@
   function tataki(data, raceDate) {
     let ren = 1;
     let prevDate = raceDate;
+    let lastIndex = 0;
     for (let index = 0; index < 4; index++) {
       if (index == data.length) {
         return 0;
@@ -480,8 +481,9 @@
         }
       }
       prevDate = date;
+      lastIndex = index;
     }
-    return index * ren;
+    return lastIndex * ren;
   }
 
   function syoukyu(data) {
