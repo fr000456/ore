@@ -2,6 +2,8 @@
 // @name keikou
 // @namespace    http://tampermonkey.net/
 // @version      0.1
+// @updateURL   https://raw.githubusercontent.com/fr000456/ore/main/keikou.js
+// @downloadURL https://raw.githubusercontent.com/fr000456/ore/main/keikou.js
 // @include https://db.netkeiba.com/?pid=race_list*
 // @run-at       document-idle
 // @grant       GM.xmlHttpRequest

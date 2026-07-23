@@ -8,6 +8,8 @@
 // @require      https://code.jquery.com/jquery-3.6.0.min.js
 // @require      https://raw.githubusercontent.com/fr000456/ore/main/const.js
 // @require      https://raw.githubusercontent.com/fr000456/ore/main/common.js
+// @updateURL   https://raw.githubusercontent.com/fr000456/ore/main/result.js
+// @downloadURL https://raw.githubusercontent.com/fr000456/ore/main/result.js
 // @require      https://raw.githubusercontent.com/fr000456/ore/main/html.js
 // ==/UserScript==
 
