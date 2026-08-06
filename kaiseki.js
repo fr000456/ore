@@ -566,27 +566,26 @@
 
   async function getFirstBlinkerHorses() {
     const raceId = getRaceId();
-    console.log("getFirstBlinkerHorses raceId:", raceId);
     if (!raceId) return [];
 
     const html = await getNewspaperHtml(raceId);
-    console.log("getNewspaperHtml result:", html ? "success" : "failed", "html length:", html?.length);
     if (!html) return [];
 
     const $html = $("<div>").html(html);
-    console.log("$html .Mark.First count:", $html.find(".Mark.First").length);
     const firstBlinkers = [];
 
-    $html.find(".Mark.First").each(function () {
-      const horseLink = $(this).closest("tr").find("a").first();
-      const horseId = horseLink.attr("href")?.match(/horse\/([A-Za-z0-9\-]+)/)?.[1];
-      console.log("Found .Mark.First, horseId:", horseId);
-      if (horseId) {
-        firstBlinkers.push(horseId);
+    $html.find(".Horse02").each(function () {
+      const $horse = $(this);
+      const $mark = $horse.find(".Mark.First");
+      if ($mark.length > 0) {
+        const horseLink = $horse.find("a").first();
+        const horseId = horseLink.attr("href")?.match(/horse\/([A-Za-z0-9\-]+)/)?.[1];
+        if (horseId) {
+          firstBlinkers.push(horseId);
+        }
       }
     });
 
-    console.log("firstBlinkers:", firstBlinkers);
     return firstBlinkers;
   }
 
