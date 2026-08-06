@@ -186,6 +186,22 @@ async function getHtmlFromMap(horseId) {
   });
 }
 
+async function getNewspaperHtml(raceId) {
+  return new Promise((resolve) => {
+    GM.xmlHttpRequest({
+      method: "GET",
+      url: `https://race.netkeiba.com/race/newspaper.html?race_id=${raceId}&rf=shutuba_submenu`,
+      onload: (res) => {
+        resolve(res.responseText);
+      },
+      onerror: (err) => {
+        console.error(err);
+        resolve(null);
+      },
+    });
+  });
+}
+
 // 非同期で「その後」の成績を集計してテーブルに反映する関数
 var totalArray = new Array();
 async function changeSonogoFunc(a, index) {

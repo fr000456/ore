@@ -65,6 +65,7 @@ var colHatsu = "silver";
 var colKyori = "aqua";
 var colRen = "tan";
 var colNaka = "tan";
+var colBlinker = "red";
 
 var txtDa = "ダ";
 var txtSyo = "昇";
@@ -76,6 +77,7 @@ var txtHatsu = "初";
 var txtKyori = "距";
 var txtRen = "連";
 var txtNaka = "中1";
+var txtBlinker = "B";
 
 const hinTxt = "牝";
 const hinCol = "pink";

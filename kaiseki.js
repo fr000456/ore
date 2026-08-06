@@ -38,6 +38,8 @@
   async function kaiseki(aFunc) {
     const a = $(".HorseName").find("a");
 
+    const firstBlinkers = await getFirstBlinkerHorses();
+
     const promises = [];
 
     for (let index = 0; index < a.length; index++) {
@@ -54,7 +56,7 @@
 
         setIndex(html);
 
-        return aFunc(html, horse, index);
+        return aFunc(html, horse, index, firstBlinkers);
       });
 
       promises.push(p);
@@ -81,8 +83,8 @@
     changeTableDtl(a, index);
   };
 
-  const funcKaiseki = function (html, a, index) {
-    doKaiseki(html, a);
+  const funcKaiseki = function (html, a, index, firstBlinkers) {
+    doKaiseki(html, a, firstBlinkers);
   };
 
   const funcTekisei = function (html, a, index) {
@@ -556,6 +558,33 @@
     return [year, month, date];
   }
 
+  function getRaceId() {
+    const url = window.location.href;
+    const match = url.match(/race_id=([A-Za-z0-9]+)/);
+    return match ? match[1] : null;
+  }
+
+  async function getFirstBlinkerHorses() {
+    const raceId = getRaceId();
+    if (!raceId) return [];
+
+    const html = await getNewspaperHtml(raceId);
+    if (!html) return [];
+
+    const $html = $("<div>").html(html);
+    const firstBlinkers = [];
+
+    $html.find(".Mark.First").each(function () {
+      const horseLink = $(this).closest("tr").find("a").first();
+      const horseId = horseLink.attr("href")?.match(/horse\/([A-Za-z0-9\-]+)/)?.[1];
+      if (horseId) {
+        firstBlinkers.push(horseId);
+      }
+    });
+
+    return firstBlinkers;
+  }
+
   function analyzeRaceData(data, raceDate) {
     return {
       hatsu: hatsu(data),
@@ -600,7 +629,7 @@
     if (flags.dirt) addMark(a, txtDa, colDa);
   }
 
-  function doKaiseki(html, a) {
+  function doKaiseki(html, a, firstBlinkers) {
     const data = parseRaceData(html);
     const raceDate = getRaceDate();
 
@@ -611,6 +640,11 @@
       addMark(a, txtHatsu, colHatsu);
       banushi(html, a);
       return false;
+    }
+
+    const horseId = a.attr("href")?.match(/horse\/([A-Za-z0-9\-]+)/)?.[1];
+    if (firstBlinkers && horseId && firstBlinkers.includes(horseId)) {
+      addMark(a, txtBlinker, colBlinker);
     }
 
     const flags = analyzeRaceData(data, raceDate);
