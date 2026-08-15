@@ -35,12 +35,12 @@
     }, interval);
   }
 
-  async function kaiseki(aFunc) {
+  async function kaiseki(aFunc, useFirstBlinker = true) {
     const a = $(".HorseName").find("a");
 
     $("#kaiseki").val("解析中...");
 
-    const firstBlinkers = await getFirstBlinkerHorses();
+    const firstBlinkers = useFirstBlinker ? await getFirstBlinkerHorses() : [];
 
     const promises = [];
 
@@ -189,7 +189,7 @@
       baba();
     });
     $("#tekisei").on("click", function () {
-      kaiseki(funcTekisei);
+      kaiseki(funcTekisei, false);
     });
     $("#kettou").on("click", function () {
       kettou();
@@ -568,7 +568,13 @@
     return match ? match[1] : null;
   }
 
+  let firstBlinkersCache = null;
+
   async function getFirstBlinkerHorses() {
+    if (firstBlinkersCache !== null) {
+      return firstBlinkersCache;
+    }
+
     const raceId = getRaceId();
     if (!raceId) return [];
 
@@ -597,6 +603,7 @@
             });
 
             document.body.removeChild(iframe);
+            firstBlinkersCache = firstBlinkers;
             resolve(firstBlinkers);
           } catch (e) {
             console.error("iframe access error:", e);
