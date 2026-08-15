@@ -574,16 +574,12 @@
       iframe.src = `https://race.netkeiba.com/race/newspaper.html?race_id=${raceId}&rf=shutuba_submenu`;
 
       iframe.onload = function () {
-        // JavaScriptが動的コンテンツを生成するまで待つ
         setTimeout(() => {
           try {
             const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
             const $iframeDoc = $(iframeDoc);
-            console.log("$iframeDoc .Horse02 count:", $iframeDoc.find(".Horse02").length);
-            console.log("$iframeDoc .Mark count:", $iframeDoc.find(".Mark").length);
-            console.log("$iframeDoc .Mark.First count:", $iframeDoc.find(".Mark.First").length);
-
             const firstBlinkers = [];
+
             $iframeDoc.find(".Horse02").each(function () {
               const $horse = $(this);
               const $mark = $horse.find(".Mark.First");
@@ -596,7 +592,6 @@
               }
             });
 
-            console.log("firstBlinkers:", firstBlinkers);
             document.body.removeChild(iframe);
             resolve(firstBlinkers);
           } catch (e) {
@@ -604,7 +599,7 @@
             document.body.removeChild(iframe);
             resolve([]);
           }
-        }, 3000); // 3秒待つ
+        }, 3000);
       };
 
       iframe.onerror = function () {
