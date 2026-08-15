@@ -569,9 +569,14 @@
     if (!raceId) return [];
 
     const html = await getNewspaperHtml(raceId);
+    console.log("getNewspaperHtml html length:", html?.length);
+    console.log("getNewspaperHtml html (first 1000 chars):", html?.substring(0, 1000));
     if (!html) return [];
 
     const $html = $("<div>").html(html);
+    console.log("$html .Horse02 count:", $html.find(".Horse02").length);
+    console.log("$html .Mark count:", $html.find(".Mark").length);
+    console.log("$html .Mark.First count:", $html.find(".Mark.First").length);
     const firstBlinkers = [];
 
     $html.find(".Horse02").each(function () {
@@ -586,6 +591,7 @@
       }
     });
 
+    console.log("firstBlinkers:", firstBlinkers);
     return firstBlinkers;
   }
 
