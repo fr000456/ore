@@ -38,6 +38,8 @@
   async function kaiseki(aFunc) {
     const a = $(".HorseName").find("a");
 
+    $("#kaiseki").val("解析中...");
+
     const firstBlinkers = await getFirstBlinkerHorses();
 
     const promises = [];
@@ -65,6 +67,8 @@
     await Promise.all(promises);
 
     changeCss();
+
+    $("#kaiseki").val("解析");
   }
 
   // ページ初期化
@@ -624,11 +628,6 @@
   }
 
   function addMarks(a, flags, firstBlinkers) {
-    const horseId = a.attr("href")?.match(/horse\/([A-Za-z0-9\-]+)/)?.[1];
-    if (firstBlinkers && horseId && firstBlinkers.includes(horseId)) {
-      addMark(a, txtBlinker, colBlinker);
-    }
-
     if (flags.syougai) addMark(a, txtSyougai, colSyougai);
     if (flags.kyori) addMark(a, txtKyori, colKyori);
 
@@ -659,6 +658,11 @@
     if (flags.syoukyu) addMark(a, txtSyo, colSyo);
     if (flags.hatsu) addMark(a, txtHatsu, colHatsu);
     if (flags.dirt) addMark(a, txtDa, colDa);
+
+    const horseId = a.attr("href")?.match(/horse\/([A-Za-z0-9\-]+)/)?.[1];
+    if (firstBlinkers && horseId && firstBlinkers.includes(horseId)) {
+      addMark(a, txtBlinker, colBlinker);
+    }
   }
 
   function doKaiseki(html, a, firstBlinkers) {
