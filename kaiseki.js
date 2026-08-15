@@ -574,34 +574,37 @@
       iframe.src = `https://race.netkeiba.com/race/newspaper.html?race_id=${raceId}&rf=shutuba_submenu`;
 
       iframe.onload = function () {
-        try {
-          const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-          const $iframeDoc = $(iframeDoc);
-          console.log("$iframeDoc .Horse02 count:", $iframeDoc.find(".Horse02").length);
-          console.log("$iframeDoc .Mark count:", $iframeDoc.find(".Mark").length);
-          console.log("$iframeDoc .Mark.First count:", $iframeDoc.find(".Mark.First").length);
+        // JavaScriptが動的コンテンツを生成するまで待つ
+        setTimeout(() => {
+          try {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            const $iframeDoc = $(iframeDoc);
+            console.log("$iframeDoc .Horse02 count:", $iframeDoc.find(".Horse02").length);
+            console.log("$iframeDoc .Mark count:", $iframeDoc.find(".Mark").length);
+            console.log("$iframeDoc .Mark.First count:", $iframeDoc.find(".Mark.First").length);
 
-          const firstBlinkers = [];
-          $iframeDoc.find(".Horse02").each(function () {
-            const $horse = $(this);
-            const $mark = $horse.find(".Mark.First");
-            if ($mark.length > 0) {
-              const horseLink = $horse.find("a").first();
-              const horseId = horseLink.attr("href")?.match(/horse\/([A-Za-z0-9\-]+)/)?.[1];
-              if (horseId) {
-                firstBlinkers.push(horseId);
+            const firstBlinkers = [];
+            $iframeDoc.find(".Horse02").each(function () {
+              const $horse = $(this);
+              const $mark = $horse.find(".Mark.First");
+              if ($mark.length > 0) {
+                const horseLink = $horse.find("a").first();
+                const horseId = horseLink.attr("href")?.match(/horse\/([A-Za-z0-9\-]+)/)?.[1];
+                if (horseId) {
+                  firstBlinkers.push(horseId);
+                }
               }
-            }
-          });
+            });
 
-          console.log("firstBlinkers:", firstBlinkers);
-          document.body.removeChild(iframe);
-          resolve(firstBlinkers);
-        } catch (e) {
-          console.error("iframe access error:", e);
-          document.body.removeChild(iframe);
-          resolve([]);
-        }
+            console.log("firstBlinkers:", firstBlinkers);
+            document.body.removeChild(iframe);
+            resolve(firstBlinkers);
+          } catch (e) {
+            console.error("iframe access error:", e);
+            document.body.removeChild(iframe);
+            resolve([]);
+          }
+        }, 3000); // 3秒待つ
       };
 
       iframe.onerror = function () {
