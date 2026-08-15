@@ -140,7 +140,7 @@
     //定数設定
     setConst();
     changeTableHd();
-    kaiseki(initFunc);
+    kaiseki(initFunc, false);
 
     //とりあえず
     $("#AllRaceSubMenu").append(
