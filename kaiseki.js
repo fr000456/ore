@@ -568,31 +568,50 @@
     const raceId = getRaceId();
     if (!raceId) return [];
 
-    const html = await getNewspaperHtml(raceId);
-    console.log("getNewspaperHtml html length:", html?.length);
-    console.log("getNewspaperHtml html (first 1000 chars):", html?.substring(0, 1000));
-    if (!html) return [];
+    return new Promise((resolve) => {
+      const iframe = document.createElement("iframe");
+      iframe.style.display = "none";
+      iframe.src = `https://race.netkeiba.com/race/newspaper.html?race_id=${raceId}&rf=shutuba_submenu`;
 
-    const $html = $("<div>").html(html);
-    console.log("$html .Horse02 count:", $html.find(".Horse02").length);
-    console.log("$html .Mark count:", $html.find(".Mark").length);
-    console.log("$html .Mark.First count:", $html.find(".Mark.First").length);
-    const firstBlinkers = [];
+      iframe.onload = function () {
+        try {
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+          const $iframeDoc = $(iframeDoc);
+          console.log("$iframeDoc .Horse02 count:", $iframeDoc.find(".Horse02").length);
+          console.log("$iframeDoc .Mark count:", $iframeDoc.find(".Mark").length);
+          console.log("$iframeDoc .Mark.First count:", $iframeDoc.find(".Mark.First").length);
 
-    $html.find(".Horse02").each(function () {
-      const $horse = $(this);
-      const $mark = $horse.find(".Mark.First");
-      if ($mark.length > 0) {
-        const horseLink = $horse.find("a").first();
-        const horseId = horseLink.attr("href")?.match(/horse\/([A-Za-z0-9\-]+)/)?.[1];
-        if (horseId) {
-          firstBlinkers.push(horseId);
+          const firstBlinkers = [];
+          $iframeDoc.find(".Horse02").each(function () {
+            const $horse = $(this);
+            const $mark = $horse.find(".Mark.First");
+            if ($mark.length > 0) {
+              const horseLink = $horse.find("a").first();
+              const horseId = horseLink.attr("href")?.match(/horse\/([A-Za-z0-9\-]+)/)?.[1];
+              if (horseId) {
+                firstBlinkers.push(horseId);
+              }
+            }
+          });
+
+          console.log("firstBlinkers:", firstBlinkers);
+          document.body.removeChild(iframe);
+          resolve(firstBlinkers);
+        } catch (e) {
+          console.error("iframe access error:", e);
+          document.body.removeChild(iframe);
+          resolve([]);
         }
-      }
-    });
+      };
 
-    console.log("firstBlinkers:", firstBlinkers);
-    return firstBlinkers;
+      iframe.onerror = function () {
+        console.error("iframe load error");
+        document.body.removeChild(iframe);
+        resolve([]);
+      };
+
+      document.body.appendChild(iframe);
+    });
   }
 
   function analyzeRaceData(data, raceDate) {
