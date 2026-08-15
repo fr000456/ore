@@ -113,23 +113,23 @@
   };
 
   function rota() {
-    kaiseki(funcRota);
+    kaiseki(funcRota, false);
   }
 
   function kettou() {
-    kaiseki(kettouFunc);
+    kaiseki(kettouFunc, false);
   }
 
   function baba() {
-    kaiseki(funcBaba);
+    kaiseki(funcBaba, false);
   }
 
   function uchi() {
-    kaiseki(funcUchi);
+    kaiseki(funcUchi, false);
   }
 
   function biko() {
-    kaiseki(funcBikou);
+    kaiseki(funcBikou, false);
   }
 
   function initPage() {
