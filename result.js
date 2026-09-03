@@ -22,6 +22,7 @@
       $$(".race_table_01")
         .find('a[href*="/horse/"]')
         .each(function (index) {
+          changeResultTableDtl($$(this), index);
           ajax($$(this).attr("href")).then((html) => {
             kettouFunc(html, $$(this), index, "all");
           });
