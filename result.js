@@ -56,15 +56,8 @@
         $$("#kettou1").val("Danzig");
         $$("#kettou2").val("Nijinsky");
 
-        // テーブル構造修正: ヘッダーに「その後」列を追加
-        changeResultTableHd();
-
-        // データ行に「その後」列を追加
-        $$(".race_table_01")
-          .find('a[href*="/horse/"]')
-          .each(function (index) {
-            changeResultTableDtl($$(this), index);
-          });
+        // 別処理
+        sonogo();
       } catch (e) {
         console.log("メニュー生成エラー:", e);
       }
