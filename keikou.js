@@ -16,9 +16,6 @@
 // @require https://raw.githubusercontent.com/fr000456/ore/main/const.js
 // ==/UserScript==
 
-// jQuery を安全に取り込む
-this.$ = this.jQuery = jQuery.noConflict(true);
-
 (function ($) {
   function init() {
     //ボタン、テーブル追加
@@ -146,7 +143,11 @@ this.$ = this.jQuery = jQuery.noConflict(true);
     }
 
     // 全レースの解析完了を待つ
-    await Promise.all(promises);
+    await Promise.all(promises).catch((error) => {
+      console.error("解析エラー:", error);
+      alert("解析エラーが発生しました: " + error);
+      throw error;
+    });
 
     // テーブル描画
     console.log("解析終わり");
