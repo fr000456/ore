@@ -272,13 +272,16 @@ function setRaceDate() {
 
 // 「その後」ボタン押下時に呼ぶ関数
 async function sonogo() {
+  console.log("sonogo function called");
   changeResultTableHd();
   setRaceDate();
 
   // 馬リンクを全部とる
   const links = $('.race_table_01 a[href^="/horse/"][title]').toArray();
+  console.log("links found:", links.length);
 
   for (let index = 0; index < links.length; index++) {
+    console.log("Processing horse index:", index);
     const a = $(links[index]);
     const href = a.attr("href");
     const match = href.match(/horse\/([A-Za-z0-9\-]+)/);
@@ -287,9 +290,11 @@ async function sonogo() {
       continue;
     }
     const horseId = match[1].trim();
+    console.log("horseId:", horseId);
 
     // awaitでHTML取得
     const html = await getHtmlFromMap(horseId);
+    console.log("html received for horseId:", horseId);
     setIndex(html);
 
     // テーブル詳細更新
@@ -299,6 +304,7 @@ async function sonogo() {
     const seisekiVal = getSonogoSeisekiVal(html, raceDate);
     addSeiseki($("#sonogoTd" + index), seisekiVal);
   }
+  console.log("sonogo function completed");
 }
 
 //血統

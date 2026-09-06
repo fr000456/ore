@@ -117,14 +117,25 @@ function changeTableDtl(a, index) {
 }
 
 function changeResultTableHd() {
+  if ($('th:contains("その後")').length > 0) {
+    return;
+  }
   var sonogoTh = $("<th>", { text: "その後" });
   var table = $(".race_table_01");
   table.find('th:contains("馬名")').after(sonogoTh);
 }
 
 function changeResultTableDtl(a, index) {
+  console.log("changeResultTableDtl called with index:", index);
+  const tr = a.closest("tr");
+  console.log("tr:", tr);
+  const td = a.closest("td");
+  console.log("td:", td);
+  
   var sonogoTd = $("<td>", { id: "sonogoTd" + index });
-  a.closest("td").after(sonogoTd);
+  console.log("sonogoTd:", sonogoTd);
+  td.after(sonogoTd);
+  console.log("sonogoTd added");
 }
 
 const horseCss = {
