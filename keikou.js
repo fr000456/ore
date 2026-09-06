@@ -105,8 +105,7 @@
         raceUrl.indexOf("/sum/") != -1 ||
         raceUrl.indexOf("/movie/") != -1 ||
         raceUrl.indexOf("/list/") != -1 ||
-        raceUrl.indexOf("movie.html") != -1 ||
-        raceUrl.indexOf("race_id=") == -1
+        raceUrl.indexOf("movie.html") != -1
       ) {
         continue;
       }
@@ -155,6 +154,10 @@
     console.log("解析終わり");
     alert("解析終わり");
 
+    // tablesorter更新
+    if ($("#resultTbl").hasClass("hasTablesorter")) {
+      $("#resultTbl").trigger("update");
+    }
 
     // サイズ確認
     estimateIndexedDBSize("MyCacheDB", "cache").then((size) => {
@@ -271,16 +274,16 @@
       tblTr.append($("<th></th>").text("連対率"));
       tblTr.append($("<th></th>").text("複勝率"));
       $("#resultTbl").append(tblHd);
-      // tablesorter初期化
-      if (!$("#resultTbl").hasClass("hasTablesorter")) {
-        $("#resultTbl").tablesorter();
-        $("#resultTbl").addClass("hasTablesorter");
-      }
     }
 
     // tbodyがなければ追加
     if ($("#resultTbl tbody").length === 0) {
       $("#resultTbl").append("<tbody></tbody>");
+      // tablesorter初期化
+      if (!$("#resultTbl").hasClass("hasTablesorter")) {
+        $("#resultTbl").tablesorter();
+        $("#resultTbl").addClass("hasTablesorter");
+      }
     }
 
     var tr = $("<tr></tr>");
