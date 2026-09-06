@@ -149,11 +149,8 @@ this.$ = this.jQuery = jQuery.noConflict(true);
     await Promise.all(promises);
 
     // テーブル描画
-    if ($("#resultTbl thead").length > 0) {
-  $("#resultTbl").trigger("destroy").tablesorter();
     console.log("解析終わり");
     alert("解析終わり");
-    }
 
 
     // サイズ確認
@@ -271,6 +268,11 @@ this.$ = this.jQuery = jQuery.noConflict(true);
       tblTr.append($("<th></th>").text("連対率"));
       tblTr.append($("<th></th>").text("複勝率"));
       $("#resultTbl").append(tblHd);
+      // tablesorter初期化
+      if (!$("#resultTbl").hasClass("hasTablesorter")) {
+        $("#resultTbl").tablesorter();
+        $("#resultTbl").addClass("hasTablesorter");
+      }
     }
 
     // tbodyがなければ追加
