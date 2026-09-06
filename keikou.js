@@ -104,7 +104,9 @@
         raceUrl.indexOf("/race/") == -1 ||
         raceUrl.indexOf("/sum/") != -1 ||
         raceUrl.indexOf("/movie/") != -1 ||
-        raceUrl.indexOf("/list/") != -1
+        raceUrl.indexOf("/list/") != -1 ||
+        raceUrl.indexOf("movie.html") != -1 ||
+        raceUrl.indexOf("race_id=") == -1
       ) {
         continue;
       }
