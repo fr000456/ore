@@ -65,29 +65,6 @@ async function ajax(linkUrl) {
   });
 }
 
-async function loadHorseHtmlMap() {
-  try {
-    const res = await fetch("http://localhost:5000/all");
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    const data = await res.json(); // { horseId, html, saved_at } の配列
-    console.log("fetch完了:", data);
-
-    const horseHtmlMap = {};
-    for (const row of data) {
-      horseHtmlMap[row.horseId] = row.html;
-    }
-
-    console.log(
-      `🗃️ DBから ${Object.keys(horseHtmlMap).length} 件の horseHtmlMap を読み込みました`,
-    );
-    return horseHtmlMap;
-  } catch (e) {
-    console.error("❌ horseHtmlMap の読み込みに失敗:", e);
-    return {};
-  }
-}
-
 function getHorseData(html) {
   if (!html) {
     return;
@@ -137,15 +114,6 @@ function getHorseData(html) {
   );
 }
 
-let horseHtmlMapCache = null;
-
-async function getHorseHtmlMap(forceReload = false) {
-  if (horseHtmlMapCache === null || forceReload) {
-    horseHtmlMapCache = await loadHorseHtmlMap();
-  }
-  return horseHtmlMapCache;
-}
-
 // horseHtmlCache を親ページで保持
 const horseHtmlCache = {};
 
@@ -177,22 +145,6 @@ async function getHtmlFromMap(horseId) {
           console.error(e);
           resolve(null);
         }
-      },
-      onerror: (err) => {
-        console.error(err);
-        resolve(null);
-      },
-    });
-  });
-}
-
-async function getNewspaperHtml(raceId) {
-  return new Promise((resolve) => {
-    GM.xmlHttpRequest({
-      method: "GET",
-      url: `https://race.netkeiba.com/race/newspaper.html?race_id=${raceId}&rf=shutuba_submenu`,
-      onload: (res) => {
-        resolve(res.responseText);
       },
       onerror: (err) => {
         console.error(err);

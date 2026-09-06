@@ -145,9 +145,3 @@ const horseCss = {
   "font-size": "13px",
   "white-space": "nowrap",
 };
-
-const hoverCss = {
-  "font-size": "20px",
-  background: "#fdf2c1",
-  border: "2px solid #fdf2c1",
-};
