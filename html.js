@@ -126,16 +126,12 @@ function changeResultTableHd() {
 }
 
 function changeResultTableDtl(a, index) {
-  console.log("changeResultTableDtl called with index:", index);
   const tr = a.closest("tr");
-  console.log("tr:", tr);
-  const td = a.closest("td");
-  console.log("td:", td);
-  
+  if (tr.find("#sonogoTd" + index).length != 0) {
+    return;
+  }
   var sonogoTd = $("<td>", { id: "sonogoTd" + index });
-  console.log("sonogoTd:", sonogoTd);
-  td.after(sonogoTd);
-  console.log("sonogoTd added");
+  a.closest("td").after(sonogoTd);
 }
 
 const horseCss = {
