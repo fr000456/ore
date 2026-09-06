@@ -1,6 +1,7 @@
 // ==UserScript==
 // @name         result
 // @match        https://db.netkeiba.com/race/*
+// @exclude      https://db.netkeiba.com/race/list.html*
 // @run-at       document-idle
 // @grant        GM.xmlHttpRequest
 // @connect      localhost
