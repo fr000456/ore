@@ -117,12 +117,19 @@ function changeTableDtl(a, index) {
 }
 
 function changeResultTableHd() {
+  if ($('th:contains("その後")').length > 0) {
+    return;
+  }
   var sonogoTh = $("<th>", { text: "その後" });
   var table = $(".race_table_01");
   table.find('th:contains("馬名")').after(sonogoTh);
 }
 
 function changeResultTableDtl(a, index) {
+  const tr = a.closest("tr");
+  if (tr.find("#sonogoTd" + index).length != 0) {
+    return;
+  }
   var sonogoTd = $("<td>", { id: "sonogoTd" + index });
   a.closest("td").after(sonogoTd);
 }
@@ -137,10 +144,4 @@ const horseCss = {
   height: "auto",
   "font-size": "13px",
   "white-space": "nowrap",
-};
-
-const hoverCss = {
-  "font-size": "20px",
-  background: "#fdf2c1",
-  border: "2px solid #fdf2c1",
 };
