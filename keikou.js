@@ -121,8 +121,12 @@
 
         // 馬リンクを取得して並列処理
         const horseLinks = $(raceResulthtml)
-          .find('#raceResult a[href*="/horse/"]')
-          .toArray();
+          .find('#raceResult tr')
+          .not(':first')
+          .map(function() {
+            return $(this).find('td').eq(3).find('a[href*="/horse/"]')[0];
+          })
+          .get();
         const horsePromises = horseLinks.map(async (el, index) => {
           const href = el.getAttribute("href");
           const match = href.match(/horse\/([A-Za-z0-9\-]+)/);
