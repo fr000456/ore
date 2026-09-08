@@ -179,7 +179,7 @@
 
     if (raceTd) {
       const race = raceTd.find("td").eq(4).text();
-      const tyakujun = raceTd.find("td").eq(11).text();
+      const tyakujun = Number(raceTd.find("td").eq(11).text());
       let shouldFetch = false;
       $('input[name="options"]:checked').each(function () {
         const val = $(this).val();
@@ -188,7 +188,7 @@
             shouldFetch = true;
             return false;
           }
-        } else if (val === tyakujun) {
+        } else if (Number(val) === tyakujun) {
           shouldFetch = true;
           return false;
         }
@@ -212,7 +212,7 @@
       .next();
     if (raceTd) {
       const kyori = raceTd.find("td").eq(14).text();
-      const tyakujun = raceTd.find("td").eq(11).text();
+      const tyakujun = Number(raceTd.find("td").eq(11).text());
       let shouldFetch = false;
       $('input[name="options"]:checked').each(function () {
         const val = $(this).val();
@@ -221,7 +221,7 @@
             shouldFetch = true;
             return false;
           }
-        } else if (val === tyakujun) {
+        } else if (Number(val) === tyakujun) {
           shouldFetch = true;
           return false;
         }
