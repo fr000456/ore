@@ -132,7 +132,7 @@
           }
           const horseId = match[1].trim();
           const html = await getHtmlFromMap(horseId);
-          setIndex(html, index);
+          setIndex(html);
           return func(html, raceUrl, index);
         });
 
