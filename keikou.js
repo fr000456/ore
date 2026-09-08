@@ -194,7 +194,17 @@
         }
       });
       if (shouldFetch) {
-        makeResultTbl(race.slice(0, race.indexOf("(")), index);
+        let value;
+        if (tyakujun === 1) {
+          value = 0;
+        } else if (tyakujun === 2) {
+          value = 1;
+        } else if (tyakujun === 3) {
+          value = 2;
+        } else {
+          value = 3;
+        }
+        makeResultTbl(race.slice(0, race.indexOf("(")), value);
       }
     }
   };
@@ -227,7 +237,17 @@
         }
       });
       if (shouldFetch) {
-        makeResultTbl(kyori, index);
+        let value;
+        if (tyakujun === 1) {
+          value = 0;
+        } else if (tyakujun === 2) {
+          value = 1;
+        } else if (tyakujun === 3) {
+          value = 2;
+        } else {
+          value = 3;
+        }
+        makeResultTbl(kyori, value);
       }
     }
   };
