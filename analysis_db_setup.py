@@ -14,7 +14,7 @@ def init_analysis_db():
             # horse_data_hd テーブル作成（馬の基本情報）
             conn.execute('''
                 CREATE TABLE horse_data_hd (
-                    horse_id TEXT PRIMARY KEY,
+                    horse_id INTEGER PRIMARY KEY,
                     horse_name TEXT NOT NULL,
                     sire TEXT,
                     dam TEXT
@@ -25,11 +25,11 @@ def init_analysis_db():
             # horse_data_dtl テーブル作成（馬ごとの過去レース情報）
             conn.execute('''
                 CREATE TABLE horse_data_dtl (
-                    horse_id TEXT NOT NULL,
-                    race_number TEXT NOT NULL,
+                    horse_id INTEGER NOT NULL,
+                    race_number INTEGER NOT NULL,
                     race_date TEXT NOT NULL,
                     course TEXT,
-                    race_id TEXT NOT NULL,
+                    race_id INTEGER NOT NULL,
                     field_size INTEGER,
                     gate INTEGER,
                     horse_number INTEGER,
@@ -41,11 +41,11 @@ def init_analysis_db():
                     distance INTEGER,
                     track_condition TEXT,
                     finish_time TEXT,
-                    margin TEXT,
+                    margin INTEGER,
                     passing_order TEXT,
                     pace TEXT,
-                    last_3f TEXT,
-                    horse_weight TEXT,
+                    last_3f REAL,
+                    horse_weight INTEGER,
                     PRIMARY KEY (horse_id, race_id),
                     FOREIGN KEY (horse_id) REFERENCES horse_data_hd(horse_id)
                 )
