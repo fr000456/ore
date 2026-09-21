@@ -64,7 +64,7 @@ def init_analysis_db():
                 distance INTEGER,
                 track_condition TEXT,
                 finish_time TEXT,
-                margin INTEGER,
+                margin REAL,
                 passing_order TEXT,
                 pace TEXT,
                 last_3f REAL,
