@@ -13,7 +13,7 @@ def init_db():
         with get_connection() as conn:
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS horse_html (
-                    horse_id TEXT PRIMARY KEY,
+                    horse_id INTEGER PRIMARY KEY,
                     html TEXT NOT NULL,
                     saved_at TEXT NOT NULL,
                     race_count INTEGER DEFAULT 0

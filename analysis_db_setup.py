@@ -37,7 +37,7 @@ def init_analysis_db():
         # horse_data_hd テーブル作成（馬の基本情報）
         conn.execute('''
             CREATE TABLE horse_data_hd (
-                horse_id INTEGER PRIMARY KEY,
+                horse_id TEXT PRIMARY KEY,
                 horse_name TEXT NOT NULL,
                 sire TEXT,
                 dam TEXT
@@ -48,7 +48,7 @@ def init_analysis_db():
         # horse_data_dtl テーブル作成（馬ごとの過去レース情報）
         conn.execute('''
             CREATE TABLE horse_data_dtl (
-                horse_id INTEGER NOT NULL,
+                horse_id TEXT NOT NULL,
                 race_number INTEGER NOT NULL,
                 race_date TEXT NOT NULL,
                 course TEXT,
