@@ -49,7 +49,6 @@ def init_analysis_db():
         conn.execute('''
             CREATE TABLE horse_data_dtl (
                 horse_id TEXT NOT NULL,
-                race_number INTEGER NOT NULL,
                 race_date TEXT NOT NULL,
                 course TEXT,
                 race_id INTEGER NOT NULL,

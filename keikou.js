@@ -100,12 +100,18 @@
     for (const el of raceLinks) {
       const raceUrl = $(el).attr("href");
 
+      // raceUrlがundefinedの場合はスキップ
+      if (!raceUrl) {
+        continue;
+      }
+
       if (
         raceUrl.indexOf("/race/") == -1 ||
         raceUrl.indexOf("/sum/") != -1 ||
         raceUrl.indexOf("/movie/") != -1 ||
         raceUrl.indexOf("/list/") != -1 ||
-        raceUrl.indexOf("movie.html") != -1
+        raceUrl.indexOf("movie.html") != -1 ||
+        raceUrl.indexOf("#") != -1  // アンカーリンクを除外
       ) {
         continue;
       }
@@ -170,18 +176,21 @@
   }
 
   const zensouTyakujunSum = function (html, raceNo, index) {
-    const raceTd = $("<div>")
-      .html(html)
+    const $div = $("<div>").html(html);
+    const raceTd = $div
       .find("#data")
       .find("tbody")
       .find("tr")
       .find("td")
-      .find('a[href*="' + raceNo + '"]')
+      .find("a")
+      .filter(function() {
+        return $(this).attr("href") && $(this).attr("href").indexOf(raceNo) !== -1;
+      })
       .parent()
       .parent()
       .next();
 
-    if (raceTd) {
+    if (raceTd.length > 0) {
       const race = raceTd.find("td").eq(4).text();
       const tyakujun = Number(raceTd.find("td").eq(11).text());
       let shouldFetch = false;
@@ -194,27 +203,32 @@
           }
         } else if (Number(val) === tyakujun) {
           shouldFetch = true;
-          return false;
+            return false;
         }
       });
-      if (shouldFetch) {
-        makeResultTbl(race.slice(0, race.indexOf("(")), index);
+      if (shouldFetch && race) {
+        const raceName = race.indexOf("(") !== -1 ? race.slice(0, race.indexOf("(")) : race;
+        makeResultTbl(raceName, index);
       }
     }
   };
 
   const kyoriTyakujunSum = function (html, raceNo, index) {
-    const raceTd = $("<div>")
-      .html(html)
+    const $div = $("<div>").html(html);
+    const raceTd = $div
       .find("#data")
       .find("tbody")
       .find("tr")
       .find("td")
-      .find('a[href*="' + raceNo + '"]')
+      .find("a")
+      .filter(function() {
+        return $(this).attr("href") && $(this).attr("href").indexOf(raceNo) !== -1;
+      })
       .parent()
       .parent()
       .next();
-    if (raceTd) {
+
+    if (raceTd.length > 0) {
       const kyori = raceTd.find("td").eq(14).text();
       const tyakujun = Number(raceTd.find("td").eq(11).text());
       let shouldFetch = false;
@@ -237,8 +251,8 @@
   };
 
   const kettouTyakujunSum = function (html, a, index) {
-    const sire = $("<div>")
-      .html(html)
+    const $div = $("<div>").html(html);
+    const sire = $div
       .find("#kettou")
       .find(".blood_table")
       .find("a")
@@ -263,6 +277,9 @@
     if (!key) {
       return;
     }
+
+    // 特殊文字を含むIDのエスケープ
+    const escapedKey = key.replace(/[!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~]/g, "\\$&");
 
     //ヘッダー
     if ($("#resultTbl").find("tr").length == 0) {
@@ -291,8 +308,8 @@
     }
 
     var tr = $("<tr></tr>");
-    if (!$("#resultTbl").find("#" + key).length) {
-      tr = tr.attr("id", key);
+    if (!$("#resultTbl").find("#" + escapedKey).length) {
+      tr = tr.attr("id", escapedKey);
       $("#resultTbl tbody").append(tr);
       var tdKey = $("<td></td>");
       tdKey.text(key);
@@ -328,7 +345,7 @@
       tr.append(tdRen);
       tr.append(tdFuku);
     } else {
-      tr = $("#resultTbl").find("#" + key);
+      tr = $("#resultTbl").find("#" + escapedKey);
     }
 
     var kaisu;
