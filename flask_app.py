@@ -3,10 +3,13 @@ import base64
 import datetime
 import time
 import sqlite3
+import pickle
+import numpy as np
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from horse_html_setup import get_connection, init_db
 from bs4 import BeautifulSoup
+from feature_engineering import calculate_horse_features, get_horse_race_history, parse_date
 
 # 解析用DB
 ANALYSIS_DB = 'horse_analysis.db'
@@ -118,12 +121,14 @@ def parse_horse_html(html, horse_id):
                 # 日付
                 date_link = cols[0].find('a')
                 if date_link:
-                    race_info['race_date'] = date_link.text.strip()
+                    race_info['race_date'] = date_link.text.strip()[-10:]
 
                 # 開催
                 course_link = cols[1].find('a')
                 if course_link:
-                    race_info['course'] = course_link.text.strip()
+                    course_text = course_link.text.strip()
+                    # 前後の数字を削除して場所名だけを保存
+                    race_info['course'] = re.sub(r'^[0-9]+|[0-9]+$', '', course_text)
 
                 # レース名（race_id抽出用）
                 race_link = cols[4].find('a')
@@ -174,19 +179,19 @@ def parse_horse_html(html, horse_id):
 
                 # 着差
                 margin_text = cols[19].text.strip()
-                race_info['margin'] = float(margin_text) if margin_text.replace('.', '').isdigit() else None
+                race_info['margin'] = float(margin_text) if margin_text and margin_text.replace('.', '').replace('-', '').isdigit() else None
 
                 # 通過
-                race_info['passing_order'] = cols[21].text.strip()
+                race_info['passing_order'] = cols[25].text.strip()
 
                 # ペース
-                race_info['pace'] = cols[22].text.strip()
+                race_info['pace'] = cols[26].text.strip()
 
                 # 上り3F
-                race_info['last_3f'] = cols[23].text.strip()
+                race_info['last_3f'] = cols[27].text.strip()
 
                 # 馬体重（カッコを除去）
-                weight_text = cols[24].text.strip()
+                weight_text = cols[28].text.strip()
                 if weight_text:
                     # 498(0) → 498、498(+14) → 498
                     weight_text = weight_text.split('(')[0].split('+')[0]
@@ -213,6 +218,9 @@ def save_html():
 
         race_count = count_race_tr(html)
 
+        # HTML解析
+        horse_data, race_data = parse_horse_html(html, horse_id)
+
         # gzip圧縮 + base64エンコード
         compressed_html = gzip.compress(html.encode('utf-8'))
         encoded_html = base64.b64encode(compressed_html).decode('ascii')
@@ -220,11 +228,14 @@ def save_html():
         for attempt in range(5):
             try:
                 with get_connection() as conn:
-                    cur = conn.execute('SELECT race_count FROM horse_html WHERE horse_id = ?', (horse_id,))
-                    row = cur.fetchone()
+                    # horse_data_dtlのレコード数を取得して出走数判定
+                    with get_analysis_connection() as analysis_conn:
+                        cur = analysis_conn.execute('SELECT COUNT(*) FROM horse_data_dtl WHERE horse_id = ?', (horse_id,))
+                        row = cur.fetchone()
+                        db_race_count = row[0] if row else 0
 
-                    if not force and row and row[0] >= race_count:
-                        print(f"⏩ {horse_id}: DB {row[0]} 出走数 {race_count} スキップ")
+                    if not force and db_race_count >= race_count:
+                        print(f"Skip {horse_id}: DB {db_race_count} race_count {race_count}")
                         return jsonify({'message': f'{horse_id} skipped (same race_count: {race_count})'}), 200
 
                     conn.execute('''
@@ -232,12 +243,58 @@ def save_html():
                         VALUES (?, ?, ?, ?)
                     ''', (horse_id, encoded_html, saved_at, race_count))
 
-                    print(f"✅ {horse_id}: 保存（出走数 {race_count}）")
-                    return jsonify({'message': f'{horse_id} saved (race_count: {race_count})'}), 200
+                    print(f"OK {horse_id}: saved (race_count: {race_count})")
+
+                # 解析データの保存
+                try:
+                    with get_analysis_connection() as analysis_conn:
+                        # 馬基本情報の保存（存在しない場合のみINSERT）
+                        analysis_conn.execute('''
+                            INSERT OR IGNORE INTO horse_data_hd
+                            (horse_id, horse_name, sire, dam)
+                            VALUES (?, ?, ?, ?)
+                        ''', (
+                            horse_data['horse_id'],
+                            horse_data['horse_name'],
+                            horse_data['sire'],
+                            horse_data['dam']
+                        ))
+
+                        # レース情報の保存
+                        saved_race_count = 0
+                        for race in race_data:
+                            if race['race_id']:  # race_idがある場合のみ保存
+                                try:
+                                    values = (
+                                        race['horse_id'], race['race_date'],
+                                        race['course'], race['race_id'], race['field_size'],
+                                        race['gate'], race['horse_number'], race['popularity'],
+                                        race['finish_position'], race['jockey'], race['carried_weight'],
+                                        race['surface'], race['distance'], race['track_condition'],
+                                        race['finish_time'], race['margin'], race['passing_order'],
+                                        race['pace'], race['last_3f'], race['horse_weight']
+                                    )
+
+                                    analysis_conn.execute('''
+                                        INSERT OR REPLACE INTO horse_data_dtl
+                                        (horse_id, race_date, course, race_id,
+                                         field_size, gate, horse_number, popularity, finish_position,
+                                         jockey, carried_weight, surface, distance, track_condition,
+                                         finish_time, margin, passing_order, pace, last_3f, horse_weight)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    ''', values)
+                                    saved_race_count += 1
+                                except Exception as e:
+                                    continue
+
+                except Exception as e:
+                    print(f"Warning: analysis data save error: {e}")
+
+                return jsonify({'message': f'{horse_id} saved (race_count: {race_count})'}), 200
 
             except sqlite3.OperationalError as e:
                 if "locked" in str(e).lower():
-                    print(f"⚠️ horse_html.db is locked (retry {attempt + 1}/5)")
+                    print(f"Warning: horse_html.db is locked (retry {attempt + 1}/5)")
                     time.sleep(1)
                 else:
                     return jsonify({'error': f'Database error: {e}'}), 500
@@ -246,55 +303,6 @@ def save_html():
 
     except Exception as e:
         return jsonify({'error': f'Unexpected error: {e}'}), 500
-
-    # 解析データの保存（一時的に無効化）
-    """
-    try:
-        horse_data, race_data = parse_horse_html(html, horse_id)
-
-        with get_analysis_connection() as analysis_conn:
-            # 馬基本情報の保存（存在しない場合のみINSERT）
-            analysis_conn.execute('''
-                INSERT OR IGNORE INTO horse_data_hd
-                (horse_id, horse_name, sire, dam)
-                VALUES (?, ?, ?, ?)
-            ''', (
-                horse_data['horse_id'],
-                horse_data['horse_name'],
-                horse_data['sire'],
-                horse_data['dam']
-            ))
-
-            # レース情報の保存
-            saved_race_count = 0
-            for race in race_data:
-                if race['race_id']:  # race_idがある場合のみ保存
-                    try:
-                        values = (
-                            race['horse_id'], race['race_date'],
-                            race['course'], race['race_id'], race['field_size'],
-                            race['gate'], race['horse_number'], race['popularity'],
-                            race['finish_position'], race['jockey'], race['carried_weight'],
-                            race['surface'], race['distance'], race['track_condition'],
-                            race['finish_time'], race['margin'], race['passing_order'],
-                            race['pace'], race['last_3f'], race['horse_weight']
-                        )
-
-                        analysis_conn.execute('''
-                            INSERT OR REPLACE INTO horse_data_dtl
-                            (horse_id, race_date, course, race_id,
-                             field_size, gate, horse_number, popularity, finish_position,
-                             jockey, carried_weight, surface, distance, track_condition,
-                             finish_time, margin, passing_order, pace, last_3f, horse_weight)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', values)
-                        saved_race_count += 1
-                    except Exception as e:
-                        continue
-
-    except Exception as e:
-        pass
-    """
 
     return jsonify({'message': f'{horse_id} saved (race_count: {race_count})'}), 200
 
@@ -326,7 +334,263 @@ def get_html(horse_id):
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# モデルをグローバルにキャッシュ
+model = None
+feature_columns = None
+
+def load_model_if_needed():
+    """モデルが読み込まれていない場合に読み込む"""
+    global model, feature_columns
+    if model is None:
+        try:
+            with open('model.pkl', 'rb') as f:
+                model = pickle.load(f)
+            # 特徴量カラムを保存（学習時と同じ順序で）
+            with open('training_data.pkl', 'rb') as f:
+                data = pickle.load(f)
+                all_features = data['features']
+                # 不要なカラムを除いた特徴量名を取得
+                cols_to_drop = ['horse_id', 'last_jockey']
+                if all_features:
+                    feature_columns = [k for k in all_features[0].keys() if k not in cols_to_drop]
+                else:
+                    feature_columns = []
+            print("Model loaded successfully")
+        except FileNotFoundError:
+            print("Model file not found. Please run train_model.py first")
+            return False
+    return True
+
+def prepare_features_for_prediction(features_dict):
+    """
+    予測用に特徴量を前処理
     
+    Args:
+        features_dict: 特徴量の辞書
+    
+    Returns:
+        前処理済みの特徴量（numpy array）
+    """
+    # 不要なカラムを削除
+    cols_to_drop = ['horse_id', 'last_jockey']
+    
+    # 学習時と同じカラム順序にする
+    if feature_columns and len(feature_columns) > 0:
+        row = []
+        for col in feature_columns:
+            value = features_dict.get(col)
+            if value is None:
+                row.append(0.0)
+            else:
+                row.append(float(value))
+        X = np.array([row])
+    else:
+        # feature_columnsがない場合、辞書から作成
+        row = []
+        for key, value in features_dict.items():
+            if key not in cols_to_drop:
+                if value is None:
+                    row.append(0.0)
+                else:
+                    row.append(float(value))
+        X = np.array([row])
+    
+    return X
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    """
+    出走馬の3着以内確率を予測
+    
+    Request:
+        {
+            "horse_ids": ["horse_id1", "horse_id2", ...],
+            "race_date": "2024/01/01"  # オプション
+        }
+    
+    Response:
+        {
+            "predictions": [
+                {
+                    "horse_id": "horse_id1",
+                    "probability": 0.35,
+                    "features": {...}
+                },
+                ...
+            ]
+        }
+    """
+    try:
+        # モデルを読み込み
+        if not load_model_if_needed():
+            return jsonify({'error': 'Model not found. Please train the model first.'}), 404
+        
+        data = request.get_json()
+        horse_ids = data.get('horse_ids', [])
+        race_date = data.get('race_date', None)
+        
+        print(f"Predict request: horse_ids={horse_ids}, race_date={race_date}")
+        
+        if not horse_ids:
+            return jsonify({'error': 'horse_ids is required'}), 400
+        
+        from feature_engineering import calculate_horse_features, get_horse_race_history, parse_date
+        
+        predictions = []
+        
+        for horse_id in horse_ids:
+            try:
+                print(f"Processing horse_id={horse_id}")
+                # レース履歴を取得
+                race_history = get_horse_race_history(horse_id)
+                print(f"Race history rows: {len(race_history) if race_history else 0}")
+                
+                # レース日付をパース
+                parsed_race_date = parse_date(race_date) if race_date else None
+                
+                # 特徴量を計算
+                try:
+                    features = calculate_horse_features(horse_id, race_history, parsed_race_date)
+                    print(f"Features calculated: {len(features) if features else 0}")
+                except Exception as e:
+                    print(f"Error calculating features: {e}")
+                    predictions.append({
+                        'horse_id': horse_id,
+                        'probability': 0.0,
+                        'error': f'Feature calculation error: {str(e)}'
+                    })
+                    continue
+                
+                if features is None or (isinstance(features, dict) and len(features) == 0):
+                    predictions.append({
+                        'horse_id': horse_id,
+                        'probability': 0.0,
+                        'error': 'No features calculated'
+                    })
+                    continue
+                
+                # 特徴量を前処理
+                try:
+                    X = prepare_features_for_prediction(features)
+                    print(f"Feature shape: {X.shape}")
+                except Exception as e:
+                    print(f"Error preparing features: {e}")
+                    predictions.append({
+                        'horse_id': horse_id,
+                        'probability': 0.0,
+                        'error': f'Feature preparation error: {str(e)}'
+                    })
+                    continue
+                
+                # 予測
+                try:
+                    probability = model.predict(X, num_iteration=model.best_iteration)[0]
+                    print(f"Prediction: {probability}")
+                except Exception as e:
+                    print(f"Error predicting: {e}")
+                    predictions.append({
+                        'horse_id': horse_id,
+                        'probability': 0.0,
+                        'error': f'Prediction error: {str(e)}'
+                    })
+                    continue
+                
+                predictions.append({
+                    'horse_id': horse_id,
+                    'probability': float(probability),
+                    'features': features
+                })
+            
+            except Exception as e:
+                print(f"Error processing horse_id={horse_id}: {e}")
+                import traceback
+                traceback.print_exc()
+                predictions.append({
+                    'horse_id': horse_id,
+                    'probability': 0.0,
+                    'error': str(e)
+                })
+        
+        # 確率でソート
+        predictions.sort(key=lambda x: x['probability'], reverse=True)
+        
+        print(f"Final predictions: {predictions}")
+        
+        return jsonify({
+            'predictions': predictions,
+            'model_loaded': True
+        }), 200
+    
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"Error in predict: {str(e)}")
+        print(error_detail)
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/predict_single', methods=['POST'])
+def predict_single():
+    """
+    単一の馬の3着以内確率を予測（簡易版）
+    
+    Request:
+        {
+            "horse_id": "horse_id1",
+            "race_date": "2024/01/01"  # オプション
+        }
+    
+    Response:
+        {
+            "horse_id": "horse_id1",
+            "probability": 0.35,
+            "features": {...}
+        }
+    """
+    try:
+        # モデルを読み込み
+        if not load_model_if_needed():
+            return jsonify({'error': 'Model not found. Please train the model first.'}), 404
+        
+        data = request.get_json()
+        horse_id = data.get('horse_id')
+        race_date = data.get('race_date', None)
+        
+        if not horse_id:
+            return jsonify({'error': 'horse_id is required'}), 400
+        
+        from feature_engineering import calculate_horse_features, get_horse_race_history, parse_date
+        
+        # レース履歴を取得
+        race_history = get_horse_race_history(horse_id)
+        
+        # レース日付をパース
+        parsed_race_date = parse_date(race_date) if race_date else None
+        
+        # 特徴量を計算
+        features = calculate_horse_features(horse_id, race_history, parsed_race_date)
+        
+        if not features:
+            return jsonify({'error': 'No features calculated'}), 400
+        
+        # 特徴量を前処理
+        X = prepare_features_for_prediction(features)
+        
+        # 予測
+        probability = model.predict(X, num_iteration=model.best_iteration)[0]
+        
+        return jsonify({
+            'horse_id': horse_id,
+            'probability': float(probability),
+            'features': features
+        }), 200
+    
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"Error in predict_single: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     init_db()
     app.run(host='127.0.0.1', port=5000, debug=True, threaded=True)

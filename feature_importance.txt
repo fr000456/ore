@@ -1,0 +1,22 @@
+Feature Importance (Top 20)
+==================================================
+avg_popularity: 98151.7384
+overall_top3_rate: 80927.7510
+overall_avg_finish: 46285.6805
+total_races: 34102.7279
+top3_rate_surface_芝: 31972.1756
+days_since_last_race: 31012.9442
+top3_rate_condition_良: 28334.5443
+top3_rate_surface_ダート: 25854.4913
+top3_rate_distance_medium: 24209.8391
+avg_horse_weight: 21738.1720
+avg_carried_weight: 21259.0602
+avg_last_3f: 21086.5092
+last_popularity: 17472.1593
+recent_5_avg_finish: 14923.1659
+top3_rate_distance_long: 12816.7926
+recent_3_avg_finish: 12321.1855
+top3_rate_distance_short: 12150.0984
+last_finish: 10526.3788
+top3_rate_condition_稍: 10218.8032
+horse_weight_change: 8953.8250

@@ -2,3 +2,5 @@ horse_html.db*
 horse_analysis.db*
 .vscode/
 __pycache__/
+model.pkl
+training_data.pkl

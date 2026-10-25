@@ -156,6 +156,12 @@
       console.log(`🗑️ horseHtmlCache を ${count} 件削除`);
       alert(`horseHtmlCache を ${count} 件削除しました`);
     });
+
+    // AI予想ボタン追加
+    $("#AllRaceSubMenu").append(
+      '<input type="button" value="AI予想" id="aiPredict">',
+    );
+    $("#aiPredict").on("click", aiPredict);
   }
 
   function changeCss() {
@@ -670,6 +676,100 @@
     if (firstBlinkers && horseId && firstBlinkers.includes(horseId)) {
       addMark(a, txtBlinker, colBlinker);
     }
+  }
+
+  // AI予想関数
+  function aiPredict() {
+    $("#aiPredict").val("AI予想中...");
+
+    // レース日付を取得（タイトルから）
+    const title = $("title").text();
+    const year = title.substr(title.lastIndexOf("年") - 4, 4);
+    const month = title.slice(title.lastIndexOf("年") + 1, title.lastIndexOf("月"));
+    const date = title.slice(title.lastIndexOf("月") + 1, title.lastIndexOf("日"));
+    const raceDate = `${year}/${month}/${date}`;
+
+    // 出走馬のhorse_idを取得（リンクから直接取得）
+    const horseIds = [];
+    const horseLinks = [];
+
+    $(".HorseName").find("a").each(function() {
+      const href = $(this).attr("href");
+      if (href) {
+        // URLからhorse_idを抽出（例: /horse/2023104876 -> 2023104876）
+        const match = href.match(/horse\/([A-Za-z0-9\-]+)/);
+        if (match) {
+          horseIds.push(match[1]);
+          horseLinks.push(href);
+        }
+      }
+    });
+
+    if (horseIds.length === 0) {
+      alert("出走馬が見つかりません");
+      $("#aiPredict").val("AI予想");
+      return;
+    }
+
+    console.log("Horse IDs:", horseIds);
+
+    // Flask APIにリクエスト
+    $.ajax({
+      url: 'http://127.0.0.1:5000/predict',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({
+        horse_ids: horseIds,
+        race_date: raceDate
+      }),
+      success: function(response) {
+        console.log("Predictions:", response);
+        // 確率を出馬表に表示
+        displayPredictions(response.predictions, horseLinks);
+        $("#aiPredict").val("AI予想");
+      },
+      error: function(xhr, status, error) {
+        console.error("AI予想エラー:", error);
+        alert("AI予想エラー: " + (xhr.responseJSON?.error || error));
+        $("#aiPredict").val("AI予想");
+      }
+    });
+  }
+
+  function displayPredictions(predictions, horseLinks) {
+    // ヘッダーに「俺指数」カラムを追加
+    const table = $(".ShutubaTable");
+    if (table.length > 0) {
+      const headerRow = table.find("tr").first();
+      // ヘッダーにカラム追加
+      headerRow.append('<th class="my-index-header">俺指数</th>');
+    }
+
+    // horse_idから予測値へのマップを作成
+    const predictionMap = {};
+    predictions.forEach(function(pred) {
+      predictionMap[pred.horse_id] = pred.probability;
+    });
+
+    // 各馬の確率を表示
+    horseLinks.forEach(function(href) {
+      // horse_idを抽出
+      const horseId = href.replace('https://db.netkeiba.com/horse/', '').replace('/', '');
+      
+      const probability = predictionMap[horseId];
+      if (probability !== undefined) {
+        const percent = (probability * 100).toFixed(1) + "%";
+        
+        // 該当する馬の行を探す
+        $(".HorseName").find("a").each(function() {
+          if ($(this).attr("href") === href) {
+            // 馬の行の一番右のセルに指数を追加
+            const row = $(this).closest("tr");
+            row.append(`<td class="my-index-cell" style="text-align: center; font-weight: bold; color: red;">${percent}</td>`);
+          }
+        });
+      }
+    });
   }
 
   function doKaiseki(html, a, firstBlinkers) {

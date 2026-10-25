@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         horseDtlToDBSenderWithCache
 // @namespace    netkeiba
-// @version      3.0
+// @version      3.1
 // @updateURL   https://raw.githubusercontent.com/fr000456/ore/main/horseDtlToDBSenderWithCache.js
 // @downloadURL https://raw.githubusercontent.com/fr000456/ore/main/horseDtlToDBSenderWithCache.js
 // @match        https://db.netkeiba.com/horse/*
@@ -10,8 +10,6 @@
 
 (function () {
   "use strict";
-  const STORAGE_KEY = "TimeIndexMode"; // 実際のキー名に注意
-  localStorage.setItem(STORAGE_KEY, "normal");
 
   let sent = false;
 
@@ -36,15 +34,6 @@
 
       const data = await res.json();
       console.log(`📤 [${horseId}] 保存結果`, data);
-
-      // 親ページキャッシュ更新
-      if (!data.message?.includes("skipped") && window.opener) {
-        window.opener.postMessage(
-          { type: "updateHorseCache", horseId, html },
-          "*",
-        );
-        console.log(`📝 [${horseId}] 親ページキャッシュ更新`);
-      }
       return true;
     } catch (e) {
       console.error(`❌ [${horseId}] 保存失敗`, e);
