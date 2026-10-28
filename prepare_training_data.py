@@ -1,6 +1,6 @@
 import sqlite3
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from feature_engineering import calculate_horse_features, get_horse_race_history, parse_date, days_between
 
 DB_PATH = 'horse_analysis.db'
@@ -67,13 +67,14 @@ def get_all_race_ids(min_horses=3):
         conn.close()
     return race_ids
 
-def prepare_training_data(race_ids=None, sample_size=None):
+def prepare_training_data(race_ids=None, sample_size=None, years_limit=10):
     """
     学習データを準備
     
     Args:
         race_ids: 使用するrace_idのリスト（Noneの場合は全て）
         sample_size: サンプリングするレース数（Noneの場合は全て）
+        years_limit: 直何年のデータを使うか（デフォルト10年）
     
     Returns:
         特徴量のリストと目的変数のリスト
@@ -84,10 +85,14 @@ def prepare_training_data(race_ids=None, sample_size=None):
     if sample_size and len(race_ids) > sample_size:
         race_ids = np.random.choice(race_ids, sample_size, replace=False).tolist()
     
+    # 直近N年以内のレースIDを取得
+    cutoff_date = datetime.now() - timedelta(days=years_limit * 365)
+
     all_features = []
     all_targets = []
     
     print(f"処理対象レース数: {len(race_ids)}")
+    print(f"直近{years_limit}年のデータを使用（{cutoff_date.strftime('%Y-%m-%d')}以降）")
     
     for i, race_id in enumerate(race_ids, 1):
         if i % 100 == 0:
@@ -104,6 +109,10 @@ def prepare_training_data(race_ids=None, sample_size=None):
             race_date = race_group[0]['race_date']
             parsed_race_date = parse_date(race_date)
             
+            # 日付フィルタリング
+            if parsed_race_date and parsed_race_date < cutoff_date:
+                continue
+
             # 各馬の特徴量を計算
             for row in race_group:
                 horse_id = row['horse_id']
@@ -182,10 +191,10 @@ def load_training_data(input_path='training_data.pkl'):
     return data['features'], data['targets']
 
 if __name__ == '__main__':
-    # 全データで学習データ作成
-    print("学習データ作成を開始します（全データ）...")
+    # 直近10年のデータで学習データ作成
+    print("学習データ作成を開始します（直近10年）...")
     
-    all_features, all_targets = prepare_training_data(sample_size=None)
+    all_features, all_targets = prepare_training_data(sample_size=None, years_limit=10)
     
     if len(all_features) > 0:
         print("\nFeature columns:")

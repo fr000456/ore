@@ -4,3 +4,5 @@ horse_analysis.db*
 __pycache__/
 model.pkl
 training_data.pkl
+model_*_*.pkl
+training_data_*_*.pkl

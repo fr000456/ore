@@ -1,8 +1,26 @@
+import re
 import sqlite3
 from datetime import datetime
 from collections import defaultdict
 
 DB_PATH = 'horse_analysis.db'
+
+SURFACE_FILTERED_FINISH_FEATURES = {
+    'last_finish',
+    'recent_3_avg_finish',
+    'recent_3_top3_rate',
+    'recent_3_avg_finish_turf',
+    'recent_3_top3_rate_turf',
+    'recent_3_avg_finish_dirt',
+    'recent_3_top3_rate_dirt',
+    'recent_5_avg_finish',
+    'recent_5_top3_rate',
+    'recent_5_avg_finish_turf',
+    'recent_5_top3_rate_turf',
+    'recent_5_avg_finish_dirt',
+    'recent_5_top3_rate_dirt',
+}
+NULL_AS_NAN_FEATURES = SURFACE_FILTERED_FINISH_FEATURES | {'prev_last_3f_rank'}
 
 def get_connection():
     """データベース接続"""
@@ -12,18 +30,31 @@ def get_connection():
 
 def parse_date(date_str):
     """日付文字列をパース"""
-    if not date_str:
+    normalized_date = normalize_race_date(date_str)
+    if normalized_date is None:
         return None
     try:
-        # YYYY-MM-DD形式
-        if '-' in date_str:
-            return datetime.strptime(date_str, '%Y-%m-%d')
-        # YYYY/MM/DD形式
-        elif '/' in date_str:
-            return datetime.strptime(date_str, '%Y/%m/%d')
-    except:
+        return datetime.strptime(normalized_date, '%Y/%m/%d')
+    except ValueError:
         return None
-    return None
+
+
+def normalize_race_date(date_str):
+    """日付文字列から有効な末尾の日付を YYYY/MM/DD 形式で取得"""
+    if not date_str:
+        return None
+
+    match = re.search(r'(\d{4}[/-]\d{2}[/-]\d{2})$', date_str.strip())
+    if not match:
+        return None
+
+    normalized_date = match.group(1).replace('-', '/')
+    try:
+        datetime.strptime(normalized_date, '%Y/%m/%d')
+    except ValueError:
+        return None
+
+    return normalized_date
 
 def days_between(date1, date2):
     """2つの日付の間の日数を計算"""
@@ -32,7 +63,7 @@ def days_between(date1, date2):
     delta = date1 - date2
     return delta.days
 
-def calculate_horse_features(horse_id, race_history, target_race_date=None):
+def calculate_horse_features(horse_id, race_history, target_race_date=None, target_race_distance=None, target_race_surface=None, target_race_course=None):
     """
     特定の馬の特徴量を計算
     
@@ -40,6 +71,9 @@ def calculate_horse_features(horse_id, race_history, target_race_date=None):
         horse_id: 馬ID
         race_history: その馬の過去レース履歴（辞書のリスト）
         target_race_date: 予測対象のレース日付（Noneの場合は最新レースを対象）
+        target_race_distance: 予測対象のレース距離
+        target_race_surface: 予測対象のレース馬場（芝・ダート）
+        target_race_course: 予測対象のレース競馬場
     
     Returns:
         特徴量の辞書
@@ -54,40 +88,98 @@ def calculate_horse_features(horse_id, race_history, target_race_date=None):
     if target_race_date is None:
         target_race_date = parse_date(race_history[0].get('race_date')) if race_history else None
     
+    # target_race_dateより後のレースを除外（AI予測時に未来のレースを含まないように）
+    if target_race_date:
+        race_history = [r for r in race_history if parse_date(r.get('race_date')) < target_race_date]
+
     features = {
         'horse_id': horse_id,
         'total_races': len(race_history),
+        'prev_last_3f_rank': race_history[0].get('last_3f_rank') if race_history else None,
     }
     
     # === 過去成績系特徴量 ===
     
-    # 最近3走の着順
-    recent_3 = race_history[:3]
-    if len(recent_3) > 0:
-        valid_finish = [r for r in recent_3 if r.get('finish_position') is not None]
+    # Recent form uses only matching-surface results within each recent-race window.
+    recent_windows = {
+        3: race_history[:3],
+        5: race_history[:5],
+    }
+    for window_size, window_races in recent_windows.items():
+        matching_races = [
+            race for race in window_races
+            if not target_race_surface or race.get('surface') == target_race_surface
+        ]
+        valid_finish = [
+            race for race in matching_races
+            if race.get('finish_position') is not None
+        ]
+        avg_key = f'recent_{window_size}_avg_finish'
+        top3_key = f'recent_{window_size}_top3_rate'
+        features[avg_key] = (
+            sum(race['finish_position'] for race in valid_finish) / len(valid_finish)
+            if valid_finish else None
+        )
+        features[top3_key] = (
+            sum(1 for race in valid_finish if race['finish_position'] <= 3) / len(valid_finish)
+            if valid_finish else None
+        )
+
+    # === 芝・ダート別の着順統計 ===
+
+    # 全体の着順（芝）
+    turf_races = [r for r in race_history if r.get('surface') == '芝']
+    if turf_races:
+        valid_finish = [r for r in turf_races if r.get('finish_position') is not None]
         if valid_finish:
-            features['recent_3_avg_finish'] = sum(r['finish_position'] for r in valid_finish) / len(valid_finish)
-            features['recent_3_top3_rate'] = sum(1 for r in valid_finish if r['finish_position'] <= 3) / len(valid_finish)
+            features['overall_avg_finish_turf'] = sum(r['finish_position'] for r in valid_finish) / len(valid_finish)
+            features['overall_top3_rate_turf'] = sum(1 for r in valid_finish if r['finish_position'] <= 3) / len(valid_finish)
         else:
-            features['recent_3_avg_finish'] = None
-            features['recent_3_top3_rate'] = 0
+            features['overall_avg_finish_turf'] = None
+            features['overall_top3_rate_turf'] = 0
     else:
-        features['recent_3_avg_finish'] = None
-        features['recent_3_top3_rate'] = 0
+        features['overall_avg_finish_turf'] = None
+        features['overall_top3_rate_turf'] = 0
     
-    # 最近5走の着順
-    recent_5 = race_history[:5]
-    if len(recent_5) > 0:
-        valid_finish = [r for r in recent_5 if r.get('finish_position') is not None]
+    # 全体の着順（ダート）
+    dirt_races = [r for r in race_history if r.get('surface') == 'ダート']
+    if dirt_races:
+        valid_finish = [r for r in dirt_races if r.get('finish_position') is not None]
         if valid_finish:
-            features['recent_5_avg_finish'] = sum(r['finish_position'] for r in valid_finish) / len(valid_finish)
-            features['recent_5_top3_rate'] = sum(1 for r in valid_finish if r['finish_position'] <= 3) / len(valid_finish)
+            features['overall_avg_finish_dirt'] = sum(r['finish_position'] for r in valid_finish) / len(valid_finish)
+            features['overall_top3_rate_dirt'] = sum(1 for r in valid_finish if r['finish_position'] <= 3) / len(valid_finish)
         else:
-            features['recent_5_avg_finish'] = None
-            features['recent_5_top3_rate'] = 0
+            features['overall_avg_finish_dirt'] = None
+            features['overall_top3_rate_dirt'] = 0
     else:
-        features['recent_5_avg_finish'] = None
-        features['recent_5_top3_rate'] = 0
+        features['overall_avg_finish_dirt'] = None
+        features['overall_top3_rate_dirt'] = 0
+
+    for surface, suffix in (('芝', 'turf'), ('ダート', 'dirt')):
+        for window_size, window_races in recent_windows.items():
+            avg_key = f'recent_{window_size}_avg_finish_{suffix}'
+            top3_key = f'recent_{window_size}_top3_rate_{suffix}'
+            if target_race_surface and surface != target_race_surface:
+                features[avg_key] = None
+                features[top3_key] = None
+                continue
+
+            surface_races = [
+                race for race in window_races
+                if race.get('surface') == surface
+            ]
+            valid_finish = [
+                race for race in surface_races
+                if race.get('finish_position') is not None
+            ]
+            features[avg_key] = (
+                sum(race['finish_position'] for race in valid_finish) / len(valid_finish)
+                if valid_finish else None
+            )
+            features[top3_key] = (
+                sum(1 for race in valid_finish if race['finish_position'] <= 3) / len(valid_finish)
+                if valid_finish else None
+            )
     
     # 全体の3着以内率
     valid_finish = [r for r in race_history if r.get('finish_position') is not None]
@@ -141,76 +233,66 @@ def calculate_horse_features(horse_id, race_history, target_race_date=None):
         features['is_tataki_2nd'] = 0
         features['is_tataki_3rd'] = 0
     
-    # === 馬場適性 ===
+    # === 距離適性（予想するレースの距離に合わせる） ===
     
-    for condition in ['良', '稍', '重', '不']:
-        cond_races = [r for r in race_history if r.get('track_condition') == condition]
-        if cond_races:
-            valid_finish = [r for r in cond_races if r.get('finish_position') is not None]
-            if valid_finish:
-                features[f'top3_rate_condition_{condition}'] = sum(1 for r in valid_finish if r['finish_position'] <= 3) / len(valid_finish)
-            else:
-                features[f'top3_rate_condition_{condition}'] = 0
-        else:
-            features[f'top3_rate_condition_{condition}'] = 0
-    
-    # === 距離適性 ===
-    
-    for dist_cat in ['short', 'medium', 'long']:
-        dist_races = []
-        for r in race_history:
-            dist = r.get('distance')
-            if dist:
-                if dist < 1400:
-                    cat = 'short'
-                elif dist <= 1800:
-                    cat = 'medium'
-                else:
-                    cat = 'long'
-                if cat == dist_cat:
-                    dist_races.append(r)
-        
+    if target_race_distance:
+        # 今回の距離での3着以内率
+        dist_races = [r for r in race_history if r.get('distance') == target_race_distance]
         if dist_races:
             valid_finish = [r for r in dist_races if r.get('finish_position') is not None]
             if valid_finish:
-                features[f'top3_rate_distance_{dist_cat}'] = sum(1 for r in valid_finish if r['finish_position'] <= 3) / len(valid_finish)
+                features['top3_rate_target_distance'] = sum(1 for r in valid_finish if r['finish_position'] <= 3) / len(valid_finish)
             else:
-                features[f'top3_rate_distance_{dist_cat}'] = 0
+                features['top3_rate_target_distance'] = 0
         else:
-            features[f'top3_rate_distance_{dist_cat}'] = 0
+            features['top3_rate_target_distance'] = 0
+    else:
+        features['top3_rate_target_distance'] = 0
     
-    # === コース適性 ===
+    # === コース適性（予想するレースのコースに合わせる） ===
     
-    major_courses = ['東京', '中山', '京都', '阪神', '新潟']
-    for course in major_courses:
-        course_races = [r for r in race_history if course in r.get('course', '')]
+    if target_race_course:
+        # 今回のコースでの3着以内率
+        course_races = [r for r in race_history if target_race_course in r.get('course', '')]
         if course_races:
             valid_finish = [r for r in course_races if r.get('finish_position') is not None]
             if valid_finish:
-                features[f'top3_rate_course_{course}'] = sum(1 for r in valid_finish if r['finish_position'] <= 3) / len(valid_finish)
+                features['top3_rate_target_course'] = sum(1 for r in valid_finish if r['finish_position'] <= 3) / len(valid_finish)
             else:
-                features[f'top3_rate_course_{course}'] = 0
+                features['top3_rate_target_course'] = 0
         else:
-            features[f'top3_rate_course_{course}'] = 0
+            features['top3_rate_target_course'] = 0
+    else:
+        features['top3_rate_target_course'] = 0
     
-    # === 芝・ダート適性 ===
+    # === 芝・ダート適性（予想するレースの馬場に合わせる） ===
     
-    for surface in ['芝', 'ダート']:
-        surface_races = [r for r in race_history if r.get('surface') == surface]
+    if target_race_surface:
+        # 今回の馬場での3着以内率
+        surface_races = [r for r in race_history if r.get('surface') == target_race_surface]
         if surface_races:
             valid_finish = [r for r in surface_races if r.get('finish_position') is not None]
             if valid_finish:
-                features[f'top3_rate_surface_{surface}'] = sum(1 for r in valid_finish if r['finish_position'] <= 3) / len(valid_finish)
+                features['top3_rate_target_surface'] = sum(1 for r in valid_finish if r['finish_position'] <= 3) / len(valid_finish)
             else:
-                features[f'top3_rate_surface_{surface}'] = 0
+                features['top3_rate_target_surface'] = 0
         else:
-            features[f'top3_rate_surface_{surface}'] = 0
+            features['top3_rate_target_surface'] = 0
+    else:
+        features['top3_rate_target_surface'] = 0
     
     # === 人気・着順系 ===
     
     if len(race_history) > 0:
         features['last_popularity'] = race_history[0].get('popularity')
-        features['last_finish'] = race_history[0].get('finish_position')
+        last_race_matches_surface = (
+            not target_race_surface
+            or race_history[0].get('surface') == target_race_surface
+        )
+        features['last_finish'] = (
+            race_history[0].get('finish_position')
+            if last_race_matches_surface else None
+        )
     else:
         features['last_popularity'] = None
         features['last_finish'] = None
@@ -221,48 +303,129 @@ def calculate_horse_features(horse_id, race_history, target_race_date=None):
     else:
         features['avg_popularity'] = None
     
-    # === 斤量系 ===
+    # === 昇級二戦目系（着順パターンで近似） ===
     
-    valid_weight = [r for r in race_history if r.get('carried_weight') is not None]
-    if valid_weight:
-        features['avg_carried_weight'] = sum(r['carried_weight'] for r in valid_weight) / len(valid_weight)
-    else:
-        features['avg_carried_weight'] = None
-    
+    # 前々走の着順
     if len(race_history) >= 2:
-        cw0 = race_history[0].get('carried_weight')
-        cw1 = race_history[1].get('carried_weight')
-        if cw0 is not None and cw1 is not None:
-            features['weight_change'] = cw0 - cw1
-        else:
-            features['weight_change'] = None
+        features['prev2_finish'] = race_history[1].get('finish_position')
     else:
-        features['weight_change'] = None
+        features['prev2_finish'] = None
     
-    # === 騎手系 ===
-    
-    if len(race_history) > 0:
-        features['last_jockey'] = race_history[0].get('jockey')
-    else:
-        features['last_jockey'] = None
-    
-    # === 馬体系 ===
-    
-    valid_horse_weight = [r for r in race_history if r.get('horse_weight') is not None]
-    if valid_horse_weight:
-        features['avg_horse_weight'] = sum(r['horse_weight'] for r in valid_horse_weight) / len(valid_horse_weight)
-    else:
-        features['avg_horse_weight'] = None
-    
+    # 前々走の距離
     if len(race_history) >= 2:
-        hw0 = race_history[0].get('horse_weight')
-        hw1 = race_history[1].get('horse_weight')
-        if hw0 is not None and hw1 is not None:
-            features['horse_weight_change'] = hw0 - hw1
-        else:
-            features['horse_weight_change'] = None
+        features['prev2_distance'] = race_history[1].get('distance')
     else:
-        features['horse_weight_change'] = None
+        features['prev2_distance'] = None
+    
+    # 前々走と前走の間隔
+    if len(race_history) >= 2:
+        date1 = parse_date(race_history[0].get('race_date'))
+        date2 = parse_date(race_history[1].get('race_date'))
+        features['prev2_to_prev_interval'] = days_between(date1, date2)
+    else:
+        features['prev2_to_prev_interval'] = None
+    
+    # 昇級二戦目フラグ（着順パターンで近似）
+    # 前々走1着、前走が着順不良（5着以下）、間隔が短い（14日以内）
+    if len(race_history) >= 2:
+        prev2_finish = race_history[1].get('finish_position')
+
+        if prev2_finish == 1:
+            features['is_promotion_2nd'] = 1
+        else:
+            features['is_promotion_2nd'] = 0
+    else:
+        features['is_promotion_2nd'] = 0
+    
+    # === 距離短縮・拡大系 ===
+    
+    if target_race_distance and len(race_history) >= 1:
+        prev_distance = race_history[0].get('distance')
+        if prev_distance:
+            features['prev_distance_diff'] = target_race_distance - prev_distance
+            features['is_distance_shortening'] = 1 if target_race_distance < prev_distance else 0
+            features['is_distance_expanding'] = 1 if target_race_distance > prev_distance else 0
+        else:
+            features['prev_distance_diff'] = None
+            features['is_distance_shortening'] = 0
+            features['is_distance_expanding'] = 0
+
+        # 今回の距離経験回数
+        same_distance_count = sum(1 for r in race_history if r.get('distance') == target_race_distance)
+        features['target_distance_experience_count'] = same_distance_count
+        features['is_first_time_distance'] = 1 if same_distance_count == 0 else 0
+    else:
+        features['prev_distance_diff'] = None
+        features['is_distance_shortening'] = 0
+        features['is_distance_expanding'] = 0
+        features['target_distance_experience_count'] = 0
+        features['is_first_time_distance'] = 0
+
+    # === 二戦目系 ===
+
+    # ダート二戦目フラグ（ダート未勝利戦でダート経験あり）
+    if target_race_surface == 'ダート':
+        dirt_count = sum(1 for r in race_history if r.get('surface') == 'ダート')
+        features['is_dirt_2nd'] = 1 if dirt_count == 1 else 0
+    else:
+        features['is_dirt_2nd'] = 0
+
+    # 短縮二戦目フラグ（距離短縮して二戦目）
+    if target_race_distance and len(race_history) >= 2:
+        prev2_distance = race_history[1].get('distance')
+        prev_distance = race_history[0].get('distance')
+        if prev2_distance and prev_distance and target_race_distance:
+            # 前々走から前走で短縮し、今回も短縮している
+            if prev2_distance > prev_distance and prev_distance > target_race_distance:
+                features['is_shortening_2nd'] = 1
+            else:
+                features['is_shortening_2nd'] = 0
+        else:
+            features['is_shortening_2nd'] = 0
+    else:
+        features['is_shortening_2nd'] = 0
+    
+    # 昇級二戦目フラグ（着順パターンで近似）
+    # 前々走1着、前走が着順不良（5着以下）、間隔が短い（14日以内）
+    if len(race_history) >= 2:
+        prev2_finish = race_history[1].get('finish_position')
+
+        if prev2_finish == 1:
+            features['is_promotion_2nd'] = 1
+        else:
+            features['is_promotion_2nd'] = 0
+    else:
+        features['is_promotion_2nd'] = 0
+
+    # クラス情報がないため、2走前の1着を昇級と仮定し、前走5着以下を凡走扱いにする
+    prev_finish = race_history[0].get('finish_position') if race_history else None
+    prev2_finish = race_history[1].get('finish_position') if len(race_history) >= 2 else None
+    features['is_win_then_poor_finish_2nd'] = int(
+        prev2_finish == 1
+        and isinstance(prev_finish, (int, float))
+        and prev_finish >= 5
+    )
+
+    # === コース代わりの成績 ===
+
+    if target_race_course and len(race_history) >= 1:
+        prev_course = race_history[0].get('course')
+        # 前走と今回でコースが異なる場合
+        if prev_course and target_race_course not in prev_course:
+            # 今回のコースでの成績を計算
+            course_races = [r for r in race_history if target_race_course in r.get('course', '')]
+            if course_races:
+                valid_finish = [r for r in course_races if r.get('finish_position') is not None]
+                if valid_finish:
+                    features['prev_course_change_score'] = sum(1 for r in valid_finish if r['finish_position'] <= 3) / len(valid_finish)
+                else:
+                    features['prev_course_change_score'] = 0
+            else:
+                features['prev_course_change_score'] = 0
+        else:
+            features['prev_course_change_score'] = 0
+    else:
+        features['prev_course_change_score'] = 0
     
     # === ペース・タイム系 ===
     

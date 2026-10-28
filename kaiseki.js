@@ -592,7 +592,8 @@
       iframe.onload = function () {
         setTimeout(() => {
           try {
-            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            const iframeDoc =
+              iframe.contentDocument || iframe.contentWindow.document;
             const $iframeDoc = $(iframeDoc);
             const firstBlinkers = [];
 
@@ -601,7 +602,9 @@
               const $mark = $horse.find(".Mark.First");
               if ($mark.length > 0) {
                 const horseLink = $horse.find("a").first();
-                const horseId = horseLink.attr("href")?.match(/horse\/([A-Za-z0-9\-]+)/)?.[1];
+                const horseId = horseLink
+                  .attr("href")
+                  ?.match(/horse\/([A-Za-z0-9\-]+)/)?.[1];
                 if (horseId) {
                   firstBlinkers.push(horseId);
                 }
@@ -685,25 +688,33 @@
     // レース日付を取得（タイトルから）
     const title = $("title").text();
     const year = title.substr(title.lastIndexOf("年") - 4, 4);
-    const month = title.slice(title.lastIndexOf("年") + 1, title.lastIndexOf("月"));
-    const date = title.slice(title.lastIndexOf("月") + 1, title.lastIndexOf("日"));
+    const month = title.slice(
+      title.lastIndexOf("年") + 1,
+      title.lastIndexOf("月"),
+    );
+    const date = title.slice(
+      title.lastIndexOf("月") + 1,
+      title.lastIndexOf("日"),
+    );
     const raceDate = `${year}/${month}/${date}`;
 
     // 出走馬のhorse_idを取得（リンクから直接取得）
     const horseIds = [];
     const horseLinks = [];
 
-    $(".HorseName").find("a").each(function() {
-      const href = $(this).attr("href");
-      if (href) {
-        // URLからhorse_idを抽出（例: /horse/2023104876 -> 2023104876）
-        const match = href.match(/horse\/([A-Za-z0-9\-]+)/);
-        if (match) {
-          horseIds.push(match[1]);
-          horseLinks.push(href);
+    $(".HorseName")
+      .find("a")
+      .each(function () {
+        const href = $(this).attr("href");
+        if (href) {
+          // URLからhorse_idを抽出（例: /horse/2023104876 -> 2023104876）
+          const match = href.match(/horse\/([A-Za-z0-9\-]+)/);
+          if (match) {
+            horseIds.push(match[1]);
+            horseLinks.push(href);
+          }
         }
-      }
-    });
+      });
 
     if (horseIds.length === 0) {
       alert("出走馬が見つかりません");
@@ -711,64 +722,195 @@
       return;
     }
 
-    console.log("Horse IDs:", horseIds);
+    // 出馬表から距離、馬場、競馬場を取得
+    const raceData = $(".RaceData01").find("span").eq(0).text();
+    let raceDistance = null;
+    let raceSurface = null;
+    const raceCourse = $(".RaceData02").find("span").eq(1).text().trim();
+
+    // 距離を抽出（例：芝1400m -> 1400）
+    const distanceMatch = raceData.match(/(\d+)m/);
+    if (distanceMatch) {
+      raceDistance = parseInt(distanceMatch[1]);
+    }
+
+    // 馬場を抽出（芝・ダート）
+    if (raceData.includes("芝")) {
+      raceSurface = "芝";
+    } else if (raceData.includes("ダ")) {
+      raceSurface = "ダート";
+    }
+
+    const supportedCourses = [
+      "東京",
+      "中山",
+      "京都",
+      "阪神",
+      "新潟",
+      "中京",
+      "札幌",
+      "函館",
+      "福島",
+      "小倉",
+    ];
+    if (
+      !raceDistance ||
+      !raceSurface ||
+      !supportedCourses.includes(raceCourse)
+    ) {
+      alert("レース条件（競馬場・芝/ダート・距離）を取得できませんでした");
+      $("#aiPredict").val("AI予想");
+      return;
+    }
+
+    const raceName = `${$(".RaceName").first().text().trim()} ${$("title").text().trim()}`;
+    const matchedRaceRank = raceRank.find(([name]) => raceName.includes(name));
+    if (!matchedRaceRank) {
+      alert("レースクラスを取得できませんでした");
+      $("#aiPredict").val("AI予想");
+      return;
+    }
 
     // Flask APIにリクエスト
     $.ajax({
-      url: 'http://127.0.0.1:5000/predict',
-      method: 'POST',
-      contentType: 'application/json',
+      url: "http://127.0.0.1:5000/predict",
+      method: "POST",
+      contentType: "application/json",
       data: JSON.stringify({
         horse_ids: horseIds,
-        race_date: raceDate
+        race_date: raceDate,
+        race_distance: raceDistance,
+        race_surface: raceSurface,
+        race_course: raceCourse,
+        race_class: matchedRaceRank[1],
       }),
-      success: function(response) {
-        console.log("Predictions:", response);
+      success: function (response) {
         // 確率を出馬表に表示
         displayPredictions(response.predictions, horseLinks);
         $("#aiPredict").val("AI予想");
       },
-      error: function(xhr, status, error) {
+      error: function (xhr, status, error) {
         console.error("AI予想エラー:", error);
         alert("AI予想エラー: " + (xhr.responseJSON?.error || error));
         $("#aiPredict").val("AI予想");
-      }
+      },
     });
   }
+
+  let sortOrder = "desc"; // 'desc' = 降順, 'asc' = 昇順
 
   function displayPredictions(predictions, horseLinks) {
     // ヘッダーに「俺指数」カラムを追加
     const table = $(".ShutubaTable");
     if (table.length > 0) {
       const headerRow = table.find("tr").first();
-      // ヘッダーにカラム追加
-      headerRow.append('<th class="my-index-header">俺指数</th>');
+      // ヘッダーにカラム追加（クリックでソート）
+      const indexHeader = `
+        <th class="my-index-header" style="cursor: pointer;">
+          <div class="tablesorter-header-inner">
+            <div class="Inner_Shutuba">
+              <span class="HorseName">俺指数</span>
+              <span class="sort_icon" style="display: block;">
+                <i class="fas fa-sort"></i>
+              </span>
+            </div>
+          </div>
+        </th>
+      `;
+      headerRow.append(indexHeader);
+
+      // ソート機能を追加
+      headerRow.find(".my-index-header").on("click", function () {
+        sortTableByIndex(table);
+      });
     }
 
     // horse_idから予測値へのマップを作成
     const predictionMap = {};
-    predictions.forEach(function(pred) {
+    predictions.forEach(function (pred) {
       predictionMap[pred.horse_id] = pred.probability;
     });
 
     // 各馬の確率を表示
-    horseLinks.forEach(function(href) {
+    horseLinks.forEach(function (href) {
       // horse_idを抽出
-      const horseId = href.replace('https://db.netkeiba.com/horse/', '').replace('/', '');
-      
+      const horseId = href
+        .replace("https://db.netkeiba.com/horse/", "")
+        .replace("/", "");
+
       const probability = predictionMap[horseId];
       if (probability !== undefined) {
         const percent = (probability * 100).toFixed(1) + "%";
-        
+
         // 該当する馬の行を探す
-        $(".HorseName").find("a").each(function() {
-          if ($(this).attr("href") === href) {
-            // 馬の行の一番右のセルに指数を追加
-            const row = $(this).closest("tr");
-            row.append(`<td class="my-index-cell" style="text-align: center; font-weight: bold; color: red;">${percent}</td>`);
-          }
-        });
+        $(".HorseName")
+          .find("a")
+          .each(function () {
+            if ($(this).attr("href") === href) {
+              // 馬の行の一番右のセルに指数を追加
+              const row = $(this).closest("tr");
+              // featuresを取得
+              // 指数セルを追加
+              row.append(
+                `<td class="my-index-cell" data-value="${probability}" style="text-align: center; font-weight: bold; color: red; cursor: pointer;">${percent}</td>`,
+              );
+            }
+          });
       }
+    });
+
+    // テーブル全体にクリックイベントを設定（イベントデリゲーション）
+    table.off('click', '.my-index-cell').on('click', '.my-index-cell', function() {
+      const probability = $(this).data('value');
+      const row = $(this).closest('tr');
+      const horseLink = row.find('.HorseName a');
+      const href = horseLink.attr('href');
+      const horseId = href.replace('https://db.netkeiba.com/horse/', '').replace('/', '');
+
+      const features = predictions.find(p => p.horse_id === horseId)?.features;
+
+      let featureText = `【${horseId} の特徴量】\n確率: ${(probability * 100).toFixed(1)}%\n\n`;
+      if (features) {
+        for (const [key, value] of Object.entries(features)) {
+          featureText += `${key}: ${value}\n`;
+        }
+      } else {
+        featureText += '特徴量がありません';
+      }
+      alert(featureText);
+    });
+  }
+
+  function sortTableByIndex(table) {
+    // ソート順を切り替え
+    sortOrder = sortOrder === "desc" ? "asc" : "desc";
+
+    // アイコンを更新
+    const icon = table.find(".my-index-header .sort_icon i");
+    icon.removeClass("fa-sort fa-sort-down fa-sort-up");
+    icon.addClass(sortOrder === "desc" ? "fa-sort-down" : "fa-sort-up");
+
+    // 行を取得（ヘッダーを除外）
+    const rows = table.find("tr").slice(1).toArray();
+
+    // 値でソート
+    rows.sort(function (a, b) {
+      const valA =
+        parseFloat($(a).find(".my-index-cell").attr("data-value")) || 0;
+      const valB =
+        parseFloat($(b).find(".my-index-cell").attr("data-value")) || 0;
+
+      if (sortOrder === "desc") {
+        return valB - valA;
+      } else {
+        return valA - valB;
+      }
+    });
+
+    // テーブルに行を再追加
+    table.find("tr").slice(1).remove();
+    rows.forEach(function (row) {
+      table.append(row);
     });
   }
 

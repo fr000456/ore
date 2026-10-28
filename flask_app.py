@@ -9,7 +9,18 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from horse_html_setup import get_connection, init_db
 from bs4 import BeautifulSoup
-from feature_engineering import calculate_horse_features, get_horse_race_history, parse_date
+from feature_engineering import (
+    NULL_AS_NAN_FEATURES,
+    calculate_horse_features,
+    get_horse_race_history,
+    normalize_race_date,
+    parse_date,
+)
+from race_metadata import (
+    get_last_3f_column_index,
+    get_last_3f_rank,
+    get_race_rank,
+)
 
 # 解析用DB
 ANALYSIS_DB = 'horse_analysis.db'
@@ -87,6 +98,7 @@ def parse_horse_html(html, horse_id):
     race_data = []
     race_table = soup.find('table', class_='db_h_race_results')
     if race_table:
+        last_3f_column_index = get_last_3f_column_index(race_table)
         rows = race_table.find_all('tr')[1:]  # ヘッダーを除外
         for row in rows:
             cols = row.find_all('td')
@@ -113,7 +125,9 @@ def parse_horse_html(html, horse_id):
                 'passing_order': None,
                 'pace': None,
                 'last_3f': None,
-                'horse_weight': None
+                'horse_weight': None,
+                'race_class': None,
+                'last_3f_rank': None
             }
 
             # 各カラムの抽出
@@ -121,7 +135,7 @@ def parse_horse_html(html, horse_id):
                 # 日付
                 date_link = cols[0].find('a')
                 if date_link:
-                    race_info['race_date'] = date_link.text.strip()[-10:]
+                    race_info['race_date'] = normalize_race_date(date_link.text)
 
                 # 開催
                 course_link = cols[1].find('a')
@@ -131,6 +145,9 @@ def parse_horse_html(html, horse_id):
                     race_info['course'] = re.sub(r'^[0-9]+|[0-9]+$', '', course_text)
 
                 # レース名（race_id抽出用）
+                race_info['race_class'] = get_race_rank(
+                    cols[4].get_text(' ', strip=True)
+                )
                 race_link = cols[4].find('a')
                 if race_link:
                     href = race_link['href']
@@ -188,7 +205,10 @@ def parse_horse_html(html, horse_id):
                 race_info['pace'] = cols[26].text.strip()
 
                 # 上り3F
-                race_info['last_3f'] = cols[27].text.strip()
+                if last_3f_column_index is not None and last_3f_column_index < len(cols):
+                    last_3f_cell = cols[last_3f_column_index]
+                    race_info['last_3f'] = last_3f_cell.get_text(strip=True)
+                    race_info['last_3f_rank'] = get_last_3f_rank(last_3f_cell)
 
                 # 馬体重（カッコを除去）
                 weight_text = cols[28].text.strip()
@@ -235,7 +255,8 @@ def save_html():
                         db_race_count = row[0] if row else 0
 
                     if not force and db_race_count >= race_count:
-                        print(f"Skip {horse_id}: DB {db_race_count} race_count {race_count}")
+                        # Skip {horse_id}: DB {db_race_count} race_count {race_count}
+                        pass
                         return jsonify({'message': f'{horse_id} skipped (same race_count: {race_count})'}), 200
 
                     conn.execute('''
@@ -243,7 +264,8 @@ def save_html():
                         VALUES (?, ?, ?, ?)
                     ''', (horse_id, encoded_html, saved_at, race_count))
 
-                    print(f"OK {horse_id}: saved (race_count: {race_count})")
+                    # OK {horse_id}: saved (race_count: {race_count})
+                    pass
 
                 # 解析データの保存
                 try:
@@ -272,29 +294,54 @@ def save_html():
                                         race['finish_position'], race['jockey'], race['carried_weight'],
                                         race['surface'], race['distance'], race['track_condition'],
                                         race['finish_time'], race['margin'], race['passing_order'],
-                                        race['pace'], race['last_3f'], race['horse_weight']
+                                        race['pace'], race['last_3f'], race['horse_weight'],
+                                        race['race_class'], race['last_3f_rank']
                                     )
 
                                     analysis_conn.execute('''
-                                        INSERT OR REPLACE INTO horse_data_dtl
+                                        INSERT INTO horse_data_dtl
                                         (horse_id, race_date, course, race_id,
                                          field_size, gate, horse_number, popularity, finish_position,
                                          jockey, carried_weight, surface, distance, track_condition,
-                                         finish_time, margin, passing_order, pace, last_3f, horse_weight)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                         finish_time, margin, passing_order, pace, last_3f, horse_weight,
+                                         race_class, last_3f_rank)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        ON CONFLICT(horse_id, race_id) DO UPDATE SET
+                                            race_date = excluded.race_date,
+                                            course = excluded.course,
+                                            field_size = excluded.field_size,
+                                            gate = excluded.gate,
+                                            horse_number = excluded.horse_number,
+                                            popularity = excluded.popularity,
+                                            finish_position = excluded.finish_position,
+                                            jockey = excluded.jockey,
+                                            carried_weight = excluded.carried_weight,
+                                            surface = excluded.surface,
+                                            distance = excluded.distance,
+                                            track_condition = excluded.track_condition,
+                                            finish_time = excluded.finish_time,
+                                            margin = excluded.margin,
+                                            passing_order = excluded.passing_order,
+                                            pace = excluded.pace,
+                                            last_3f = excluded.last_3f,
+                                            horse_weight = excluded.horse_weight,
+                                            race_class = COALESCE(excluded.race_class, horse_data_dtl.race_class),
+                                            last_3f_rank = COALESCE(excluded.last_3f_rank, horse_data_dtl.last_3f_rank)
                                     ''', values)
                                     saved_race_count += 1
                                 except Exception as e:
                                     continue
 
                 except Exception as e:
-                    print(f"Warning: analysis data save error: {e}")
+                    # Warning: analysis data save error: {e}
+                    pass
 
                 return jsonify({'message': f'{horse_id} saved (race_count: {race_count})'}), 200
 
             except sqlite3.OperationalError as e:
                 if "locked" in str(e).lower():
-                    print(f"Warning: horse_html.db is locked (retry {attempt + 1}/5)")
+                    # Warning: horse_html.db is locked (retry {attempt + 1}/5)
+                    pass
                     time.sleep(1)
                 else:
                     return jsonify({'error': f'Database error: {e}'}), 500
@@ -338,9 +385,34 @@ def get_html(horse_id):
 # モデルをグローバルにキャッシュ
 model = None
 feature_columns = None
+models_cache = {}  # レース条件ごとのモデルキャッシュ
+
+def load_model_by_condition(course, distance, surface, model_group=None):
+    """レース条件に応じてモデルを読み込む"""
+    group_suffix = f"_{model_group}" if model_group else ""
+    model_key = f"{course}_{surface}_{distance}m{group_suffix}"
+
+    # キャッシュにあれば返す
+    if model_key in models_cache:
+        return models_cache[model_key]
+
+    # モデルファイル名
+    model_filename = f"model_{course}_{surface}_{distance}m{group_suffix}.pkl"
+
+    try:
+        with open(model_filename, 'rb') as f:
+            data = pickle.load(f)
+            models_cache[model_key] = data
+            # Model loaded: {model_filename}
+            pass
+            return data
+    except FileNotFoundError:
+        # Model not found: {model_filename}
+        pass
+        return None
 
 def load_model_if_needed():
-    """モデルが読み込まれていない場合に読み込む"""
+    """モデルが読み込まれていない場合に読み込む（古いAPIの互換性用）"""
     global model, feature_columns
     if model is None:
         try:
@@ -356,27 +428,57 @@ def load_model_if_needed():
                     feature_columns = [k for k in all_features[0].keys() if k not in cols_to_drop]
                 else:
                     feature_columns = []
-            print("Model loaded successfully")
+            # Model loaded successfully
+            pass
         except FileNotFoundError:
-            print("Model file not found. Please run train_model.py first")
+            # Model file not found. Please run train_model.py first
             return False
     return True
 
-def prepare_features_for_prediction(features_dict):
+def prepare_features_for_prediction(features_dict, model_feature_columns=None):
     """
     予測用に特徴量を前処理
     
     Args:
         features_dict: 特徴量の辞書
+        model_feature_columns: モデルの特徴量カラム名（指定された場合）
     
     Returns:
         前処理済みの特徴量（numpy array）
     """
     # 不要なカラムを削除
-    cols_to_drop = ['horse_id', 'last_jockey']
+    cols_to_drop = [
+        'horse_id', 'last_jockey',
+        # 馬場適性（削除）
+        'top3_rate_condition_良', 'top3_rate_condition_稍', 'top3_rate_condition_重', 'top3_rate_condition_不',
+        # 距離適性（古い、削除）
+        'top3_rate_distance_short', 'top3_rate_distance_medium', 'top3_rate_distance_long',
+        # コース適性（古い、削除）
+        'top3_rate_course_東京', 'top3_rate_course_中山', 'top3_rate_course_京都', 'top3_rate_course_阪神', 'top3_rate_course_新潟',
+        # 芝・ダート適性（古い、削除）
+        'top3_rate_surface_芝', 'top3_rate_surface_ダート',
+        # 斤量系（削除）
+        'avg_carried_weight', 'weight_change',
+        # 馬体系（削除）
+        'avg_horse_weight', 'horse_weight_change',
+        # 古いkyori系（削除）
+        'is_diff_distance_from_prev', 'same_distance_experience',
+        # 古いdirt系（削除）
+        'has_dirt_experience'
+    ]
     
-    # 学習時と同じカラム順序にする
-    if feature_columns and len(feature_columns) > 0:
+    # モデルの特徴量カラムが指定されている場合
+    if model_feature_columns and len(model_feature_columns) > 0:
+        row = []
+        for col in model_feature_columns:
+            value = features_dict.get(col)
+            if value is None:
+                row.append(np.nan if col in NULL_AS_NAN_FEATURES else 0.0)
+            else:
+                row.append(float(value))
+        X = np.array([row])
+    # グローバルのfeature_columnsがある場合
+    elif feature_columns and len(feature_columns) > 0:
         row = []
         for col in feature_columns:
             value = features_dict.get(col)
@@ -422,39 +524,69 @@ def predict():
         }
     """
     try:
-        # モデルを読み込み
-        if not load_model_if_needed():
-            return jsonify({'error': 'Model not found. Please train the model first.'}), 404
-        
         data = request.get_json()
         horse_ids = data.get('horse_ids', [])
         race_date = data.get('race_date', None)
-        
-        print(f"Predict request: horse_ids={horse_ids}, race_date={race_date}")
+        race_distance = data.get('race_distance', None)
+        race_surface = data.get('race_surface', None)
+        race_course = data.get('race_course', None)
+        race_class = data.get('race_class')
         
         if not horse_ids:
             return jsonify({'error': 'horse_ids is required'}), 400
         
+        # レース条件が提供されている場合、レース条件ごとのモデルを使用
+        if race_course and race_distance and race_surface:
+            if race_class is None:
+                return jsonify({'error': 'race_class is required for race-condition prediction'}), 400
+            try:
+                race_class = int(race_class)
+            except (TypeError, ValueError):
+                return jsonify({'error': 'race_class must be an integer from 0 to 9'}), 400
+            if not 0 <= race_class <= 9:
+                return jsonify({'error': 'race_class must be an integer from 0 to 9'}), 400
+
+            model_group = 'condition' if 2 <= race_class <= 4 else 'other'
+            # 競走条件とクラス区分に一致するモデルを読み込む
+            model_data = load_model_by_condition(
+                race_course,
+                race_distance,
+                race_surface,
+                model_group,
+            )
+            if not model_data:
+                return jsonify({
+                    'error': (
+                        f'Model not found for {race_course} {race_surface} '
+                        f'{race_distance}m ({model_group})'
+                    )
+                }), 404
+
+            model_instance = model_data['model']
+            model_feature_columns = model_data['feature_columns']
+        else:
+            # レース条件が提供されていない場合、単一モデルを使用（互換性用）
+            if not load_model_if_needed():
+                return jsonify({'error': 'Model not found. Please train the model first.'}), 404
+            model_instance = model
+            model_feature_columns = feature_columns
+
         from feature_engineering import calculate_horse_features, get_horse_race_history, parse_date
         
         predictions = []
         
         for horse_id in horse_ids:
             try:
-                print(f"Processing horse_id={horse_id}")
                 # レース履歴を取得
                 race_history = get_horse_race_history(horse_id)
-                print(f"Race history rows: {len(race_history) if race_history else 0}")
                 
                 # レース日付をパース
                 parsed_race_date = parse_date(race_date) if race_date else None
                 
                 # 特徴量を計算
                 try:
-                    features = calculate_horse_features(horse_id, race_history, parsed_race_date)
-                    print(f"Features calculated: {len(features) if features else 0}")
+                    features = calculate_horse_features(horse_id, race_history, parsed_race_date, race_distance, race_surface, race_course)
                 except Exception as e:
-                    print(f"Error calculating features: {e}")
                     predictions.append({
                         'horse_id': horse_id,
                         'probability': 0.0,
@@ -472,10 +604,8 @@ def predict():
                 
                 # 特徴量を前処理
                 try:
-                    X = prepare_features_for_prediction(features)
-                    print(f"Feature shape: {X.shape}")
+                    X = prepare_features_for_prediction(features, model_feature_columns)
                 except Exception as e:
-                    print(f"Error preparing features: {e}")
                     predictions.append({
                         'horse_id': horse_id,
                         'probability': 0.0,
@@ -485,10 +615,8 @@ def predict():
                 
                 # 予測
                 try:
-                    probability = model.predict(X, num_iteration=model.best_iteration)[0]
-                    print(f"Prediction: {probability}")
+                    probability = model_instance.predict(X, num_iteration=model_instance.best_iteration)[0]
                 except Exception as e:
-                    print(f"Error predicting: {e}")
                     predictions.append({
                         'horse_id': horse_id,
                         'probability': 0.0,
@@ -503,9 +631,6 @@ def predict():
                 })
             
             except Exception as e:
-                print(f"Error processing horse_id={horse_id}: {e}")
-                import traceback
-                traceback.print_exc()
                 predictions.append({
                     'horse_id': horse_id,
                     'probability': 0.0,
@@ -515,7 +640,8 @@ def predict():
         # 確率でソート
         predictions.sort(key=lambda x: x['probability'], reverse=True)
         
-        print(f"Final predictions: {predictions}")
+        # Final predictions: {predictions}
+        pass
         
         return jsonify({
             'predictions': predictions,
@@ -525,8 +651,10 @@ def predict():
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
-        print(f"Error in predict: {str(e)}")
-        print(error_detail)
+        # Error in predict: {str(e)}
+        pass
+        # Error detail: {error_detail}
+        pass
         return jsonify({'error': str(e)}), 500
 
 @app.route('/predict_single', methods=['POST'])
@@ -555,6 +683,9 @@ def predict_single():
         data = request.get_json()
         horse_id = data.get('horse_id')
         race_date = data.get('race_date', None)
+        race_distance = data.get('race_distance', None)
+        race_surface = data.get('race_surface', None)
+        race_course = data.get('race_course', None)
         
         if not horse_id:
             return jsonify({'error': 'horse_id is required'}), 400
@@ -568,7 +699,7 @@ def predict_single():
         parsed_race_date = parse_date(race_date) if race_date else None
         
         # 特徴量を計算
-        features = calculate_horse_features(horse_id, race_history, parsed_race_date)
+        features = calculate_horse_features(horse_id, race_history, parsed_race_date, race_distance, race_surface, race_course)
         
         if not features:
             return jsonify({'error': 'No features calculated'}), 400
@@ -588,7 +719,8 @@ def predict_single():
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
-        print(f"Error in predict_single: {str(e)}")
+        # Error in predict_single: {str(e)}
+        pass
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':

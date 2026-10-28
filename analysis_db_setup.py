@@ -68,6 +68,8 @@ def init_analysis_db():
                 pace TEXT,
                 last_3f REAL,
                 horse_weight INTEGER,
+                race_class TEXT,
+                last_3f_rank INTEGER,
                 PRIMARY KEY (horse_id, race_id),
                 FOREIGN KEY (horse_id) REFERENCES horse_data_hd(horse_id)
             )

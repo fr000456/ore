@@ -2,6 +2,7 @@ import gzip
 import base64
 import sqlite3
 from bs4 import BeautifulSoup
+from feature_engineering import normalize_race_date
 
 # 既存DB（圧縮HTML）
 SOURCE_DB = 'horse_html.db'
@@ -102,7 +103,7 @@ def parse_horse_html(html):
                 # 日付
                 date_link = cols[0].find('a')
                 if date_link:
-                    race_info['race_date'] = date_link.text.strip()
+                    race_info['race_date'] = normalize_race_date(date_link.text)
 
                 # 開催
                 course_link = cols[1].find('a')

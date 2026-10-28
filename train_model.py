@@ -13,7 +13,7 @@ def prepare_features_for_training(all_features):
         前処理済みの特徴量（numpy array）と特徴量名のリスト
     """
     # 不要なカラムを削除
-    cols_to_drop = ['horse_id', 'last_jockey']  # horse_idは識別子、last_jockeyはカテゴリ変数（今回は除外）
+    cols_to_drop = ['horse_id', 'last_jockey']
     
     # 特徴量名を取得（最初のサンプルから）
     if not all_features:
