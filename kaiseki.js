@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         kaiseki
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      0.2
 // @updateURL   https://raw.githubusercontent.com/fr000456/ore/main/kaiseki.js
 // @downloadURL https://raw.githubusercontent.com/fr000456/ore/main/kaiseki.js
 // @match        https://race.netkeiba.com/race/shutuba.html*
@@ -764,7 +764,15 @@
     }
 
     const raceName = `${$(".RaceName").first().text().trim()} ${$("title").text().trim()}`;
-    const matchedRaceRank = raceRank.find(([name]) => raceName.includes(name));
+    const gradeTypeClass =
+      $(".RaceName .Icon_GradeType").first().attr("class") || "";
+    const gradeTypeMatch = gradeTypeClass.match(/\bIcon_GradeType([123])\b/);
+    const gradeTypeRank = gradeTypeMatch
+      ? { 1: 9, 2: 8, 3: 7 }[gradeTypeMatch[1]]
+      : null;
+    const matchedRaceRank = gradeTypeRank !== null
+      ? [null, gradeTypeRank]
+      : raceRank.find(([name]) => raceName.includes(name));
     if (!matchedRaceRank) {
       alert("レースクラスを取得できませんでした");
       $("#aiPredict").val("AI予想");
