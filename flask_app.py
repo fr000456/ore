@@ -53,6 +53,15 @@ def race_has_recorded_winner(race_id):
         connection.close()
 
 
+import sys
+
+# Windowsのcp932コンソールで絵文字入りprintがUnicodeEncodeErrorになるのを防ぐ
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 app = Flask(__name__)
 CORS(app)
 
@@ -309,8 +318,13 @@ def parse_horse_html(html, horse_id):
                 # 距離
                 distance_text = cols[14].text.strip()
                 if distance_text:
-                    # ダ1600 → ダート1600m、芝1800 → 芝1800m
-                    race_info['surface'] = 'ダート' if 'ダ' in distance_text else '芝'
+                    # 障3110 → 障害3110m、ダ1600 → ダート1600m、芝1800 → 芝1800m
+                    if '障' in distance_text:
+                        race_info['surface'] = '障害'
+                    elif 'ダ' in distance_text:
+                        race_info['surface'] = 'ダート'
+                    else:
+                        race_info['surface'] = '芝'
                     race_info['distance'] = int(''.join(filter(str.isdigit, distance_text)))
 
                 # 馬場状態

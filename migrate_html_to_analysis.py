@@ -149,8 +149,13 @@ def parse_horse_html(html):
                 # 距離
                 distance_text = cols[14].text.strip()
                 if distance_text:
-                    # ダ1600 → ダート1600m、芝1800 → 芝1800m
-                    race_info['surface'] = 'ダート' if 'ダ' in distance_text else '芝'
+                    # 障3110 → 障害3110m、ダ1600 → ダート1600m、芝1800 → 芝1800m
+                    if '障' in distance_text:
+                        race_info['surface'] = '障害'
+                    elif 'ダ' in distance_text:
+                        race_info['surface'] = 'ダート'
+                    else:
+                        race_info['surface'] = '芝'
                     race_info['distance'] = int(''.join(filter(str.isdigit, distance_text)))
 
                 # 馬場状態

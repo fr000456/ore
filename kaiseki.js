@@ -882,6 +882,7 @@
     let surface = null;
     if (s.includes("芝")) surface = "芝";
     else if (s.includes("ダ")) surface = "ダート";
+    else if (s.includes("障")) surface = "障害";
     return { distance: Number.isNaN(distance) ? null : distance, surface };
   }
 
@@ -921,6 +922,11 @@
     const kyoriVal = $("#kyori").val();
     const corseVal = $("#corse").val();
 
+    // 対象レースが障害ならコース・両方の成績を障害のみに絞る
+    const isObstacleTarget = $(".RaceData01").find('span:contains("障")').length > 0;
+    const matchTargetSurface = (r) =>
+      !isObstacleTarget || (r.surface || "").includes("障");
+
     const hidariSeisekiVal = getSeisekiValFromJson(raceHistory, "course", corseHidari);
     //左回り
     if (corseHidari.includes(corseVal)) {
@@ -935,7 +941,10 @@
       addSeiseki($("#migiTd" + index), migiSeisekiVal);
     }
     //コース
-    seisekiVal = getSeisekiValFromJson(raceHistory, "course", [corseVal]);
+    const corseRaces = raceHistory.filter(
+      (r) => r.course == corseVal && matchTargetSurface(r)
+    );
+    seisekiVal = getSeisekiValFromJson(corseRaces, "course", []);
     addSeiseki($("#corseTd" + index), seisekiVal);
 
     //距離
@@ -946,7 +955,10 @@
 
     //両方
     const ryouRaces = raceHistory.filter(
-      (r) => r.course == corseVal && matchKyoriFilter(r, kyoriFilter)
+      (r) =>
+        r.course == corseVal &&
+        matchTargetSurface(r) &&
+        matchKyoriFilter(r, kyoriFilter)
     );
     seisekiVal = getSeisekiValFromJson(ryouRaces, "distance", []);
     addSeiseki($("#ryouTd" + index), seisekiVal);
@@ -1039,7 +1051,7 @@
     if (targetCourse !== "障") {
       return false;
     }
-    return raceHistory.filter((r) => (r.course || "").includes("障")).length === 1;
+    return raceHistory.filter((r) => (r.surface || "").includes("障")).length === 1;
   }
 
   function dirt(raceHistory, targetSurface) {
