@@ -945,11 +945,10 @@
     if (corseHidari.includes(corseVal)) {
       addSeiseki($("#hidariTd" + index), hidariSeisekiVal);
     } else {
-      //右回り（左回りレースと障害レースを除外）
-      const migiRaces = displayRaces.filter((r) => {
-        const c = r.course || "";
-        return !corseHidari.includes(c) && !c.includes("障");
-      });
+      //右回り（左回りレースを除外）
+      const migiRaces = displayRaces.filter(
+        (r) => !corseHidari.includes(r.course || "")
+      );
       const migiSeisekiVal = getSeisekiValFromJson(migiRaces, "course", []);
       addSeiseki($("#migiTd" + index), migiSeisekiVal);
     }
