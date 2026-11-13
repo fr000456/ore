@@ -390,9 +390,10 @@
       ? `${String(raceDateArr[0]).padStart(4, "0")}/${String(raceDateArr[1]).padStart(2, "0")}/${String(raceDateArr[2]).padStart(2, "0")}`
       : null;
 
-    // 対象レースのコース・距離を出馬表ページから取得（解析・適性判定用）
+    // 対象レースのコース・距離・馬場を出馬表ページから取得（解析・適性判定用）
     let targetCourse = null;
     let targetDistance = null;
+    let targetSurface = null;
     const raceData01 = $(".RaceData01");
     if (raceData01.length > 0) {
       const rtext = raceData01.text();
@@ -401,6 +402,9 @@
       else if (rtext.includes("ダ")) targetCourse = "ダ";
       const distMatch = rtext.match(/(\d{4})m/);
       if (distMatch) targetDistance = parseInt(distMatch[1], 10);
+      // 馬場を取得
+      if (rtext.includes("芝")) targetSurface = "芝";
+      else if (rtext.includes("ダ")) targetSurface = "ダート";
     }
 
     // JSONを受け取る関数（解析・適性）とHTMLを受け取る関数（その他）に分岐
@@ -444,7 +448,7 @@
           dam: null,
           race_history: [],
         };
-        const p = aFunc(horseData, horse, index, firstBlinkers, targetCourse, targetDistance);
+        const p = aFunc(horseData, horse, index, firstBlinkers, targetCourse, targetDistance, targetSurface);
         promises.push(p);
       } else {
         // 馬場・ローテ・内回り・備考・血統など：従来通りHTMLを渡す
@@ -480,8 +484,8 @@
     changeTableDtl(a, index);
   };
 
-  const funcKaiseki = function (horseData, a, index, firstBlinkers, targetCourse, targetDistance) {
-    doKaiseki(horseData, a, firstBlinkers, targetCourse, targetDistance);
+  const funcKaiseki = function (horseData, a, index, firstBlinkers, targetCourse, targetDistance, targetSurface) {
+    doKaiseki(horseData, a, firstBlinkers, targetCourse, targetDistance, targetSurface);
   };
 
   const funcTekisei = function (horseData, a, index) {
@@ -1007,16 +1011,20 @@
     return true;
   }
 
-  function kyori(raceHistory, targetDistance) {
+  function kyori(raceHistory, targetDistance, targetSurface) {
     // 目標距離が不明な場合は判定不可
     if (!targetDistance) return false;
     // 前走が同距離ではない
     if (raceHistory[0].distance !== targetDistance) {
       return false;
     }
-    // 二戦以上経験している（同距離の出走が1回だけ）
-    const sameDistCount = raceHistory.filter((r) => r.distance === targetDistance).length;
-    return sameDistCount === 1;
+    // 前走が同馬場ではない
+    if (raceHistory[0].surface !== targetSurface) {
+      return false;
+    }
+    // 二戦以上経験している（同距離・同馬場の出走が1回だけ）
+    const sameDistSurfaceCount = raceHistory.filter((r) => r.distance === targetDistance && r.surface === targetSurface).length;
+    return sameDistSurfaceCount === 1;
   }
 
   function syougai(raceHistory, targetCourse) {
@@ -1027,9 +1035,9 @@
     return raceHistory.filter((r) => (r.course || "").includes("障")).length === 1;
   }
 
-  function dirt(raceHistory, targetCourse) {
+  function dirt(raceHistory, targetSurface) {
     //そもそもダートレースではない
-    if (targetCourse !== "ダ") {
+    if (targetSurface !== "ダート") {
       return false;
     }
     return raceHistory.filter((r) => (r.surface || "").includes("ダ")).length === 1;
@@ -1122,13 +1130,14 @@
     });
   }
 
-  function analyzeRaceData(raceHistory, raceDate, targetCourse, targetDistance) {
+  function analyzeRaceData(raceHistory, raceDate, targetCourse, targetDistance, targetSurface) {
+    const hatsuFlag = hatsu(raceHistory, targetCourse);
     return {
-      hatsu: hatsu(raceHistory, targetCourse),
-      dirt: dirt(raceHistory, targetCourse),
+      hatsu: hatsuFlag,
+      dirt: dirt(raceHistory, targetSurface),
       syougai: syougai(raceHistory, targetCourse),
       syoukyu: raceHistory.length > 1 ? syoukyu(raceHistory) : false,
-      kyori: kyori(raceHistory, targetDistance),
+      kyori: hatsuFlag ? false : kyori(raceHistory, targetDistance, targetSurface),
       tataki: tataki(raceHistory, raceDate),
     };
   }
@@ -1248,7 +1257,7 @@
     }
 
     // 出馬表から距離、馬場、競馬場を取得
-    const raceData = $(".RaceData01").find("span").eq(0).text();
+    const raceData = $(".RaceData01").text();
     let raceDistance = null;
     let raceSurface = null;
     const raceCourse = $(".RaceData02").find("span").eq(1).text().trim();
@@ -1489,7 +1498,7 @@
     });
   }
 
-  function doKaiseki(horseData, a, firstBlinkers, targetCourse, targetDistance) {
+  function doKaiseki(horseData, a, firstBlinkers, targetCourse, targetDistance, targetSurface) {
     const raceHistory = horseData.race_history || [];
     const raceDate = getRaceDate();
 
@@ -1503,7 +1512,7 @@
       return false;
     }
 
-    const flags = analyzeRaceData(raceHistory, raceDate, targetCourse, targetDistance);
+    const flags = analyzeRaceData(raceHistory, raceDate, targetCourse, targetDistance, targetSurface);
     addMarks(a, flags, firstBlinkers);
     try { banushi(null, a); } catch (e) { console.warn("banushi error (skipped in JSON mode):", e); }
   }
