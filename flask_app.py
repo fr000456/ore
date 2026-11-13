@@ -191,8 +191,16 @@ def parse_horse_html(html, horse_id):
         'horse_id': horse_id,
         'horse_name': None,
         'sire': None,
-        'dam': None
+        'dam': None,
+        'banushi': None
     }
+
+    # 馬主マークURLの抽出（.db_prof_table 内の最初のimg）
+    prof_table = soup.find(class_='db_prof_table')
+    if prof_table:
+        prof_img = prof_table.find('img')
+        if prof_img and prof_img.get('src'):
+            horse_data['banushi'] = prof_img['src']
 
     # 馬名の抽出（レース成績テーブルのsummary属性から）
     race_table = soup.find('table', class_='db_h_race_results')
@@ -508,16 +516,19 @@ def save_horse_for_race():
                     except sqlite3.OperationalError:
                         time.sleep(0.5)
 
-                # 2. 馬基本情報: INSERT OR IGNORE で血統情報を上書きしない（/save と同じ）
+                # 2. 馬基本情報: banushiのみ上書き更新、血統情報は既存値を保持
                 analysis_conn.execute('''
-                    INSERT OR IGNORE INTO horse_data_hd
-                    (horse_id, horse_name, sire, dam)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO horse_data_hd
+                    (horse_id, horse_name, sire, dam, banushi)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(horse_id) DO UPDATE SET
+                        banushi = COALESCE(excluded.banushi, horse_data_hd.banushi)
                 ''', (
                     horse_data['horse_id'],
                     horse_data['horse_name'],
                     horse_data['sire'],
                     horse_data['dam'],
+                    horse_data['banushi'],
                 ))
 
                 # 過去走保存: /save と同じ INSERT ... ON CONFLICT DO UPDATE
@@ -632,16 +643,19 @@ def save_html():
                 # 解析データの保存
                 try:
                     with get_analysis_connection() as analysis_conn:
-                        # 馬基本情報の保存（存在しない場合のみINSERT）
+                        # 馬基本情報の保存（banushiのみ上書き更新、他は既存値を保持）
                         analysis_conn.execute('''
-                            INSERT OR IGNORE INTO horse_data_hd
-                            (horse_id, horse_name, sire, dam)
-                            VALUES (?, ?, ?, ?)
+                            INSERT INTO horse_data_hd
+                            (horse_id, horse_name, sire, dam, banushi)
+                            VALUES (?, ?, ?, ?, ?)
+                            ON CONFLICT(horse_id) DO UPDATE SET
+                                banushi = COALESCE(excluded.banushi, horse_data_hd.banushi)
                         ''', (
                             horse_data['horse_id'],
                             horse_data['horse_name'],
                             horse_data['sire'],
-                            horse_data['dam']
+                            horse_data['dam'],
+                            horse_data['banushi']
                         ))
 
                         # レース情報の保存
@@ -1010,7 +1024,7 @@ def batch_horse_data():
         with get_analysis_connection() as conn:
             # 馬基本情報を一括取得
             hd_rows = conn.execute(f'''
-                SELECT horse_id, horse_name, sire, dam
+                SELECT horse_id, horse_name, sire, dam, banushi
                 FROM horse_data_hd
                 WHERE horse_id IN ({placeholders})
             ''', horse_ids).fetchall()
@@ -1021,6 +1035,7 @@ def batch_horse_data():
                     'horse_name': row[1],
                     'sire': row[2],
                     'dam': row[3],
+                    'banushi': row[4],
                 }
 
             # 過去レース情報を一括取得
@@ -1061,12 +1076,14 @@ def batch_horse_data():
                 'horse_name': None,
                 'sire': None,
                 'dam': None,
+                'banushi': None,
             })
             horses[hid] = {
                 'horse_id': master['horse_id'],
                 'horse_name': master['horse_name'],
                 'sire': master['sire'],
                 'dam': master['dam'],
+                'banushi': master['banushi'],
                 'race_history': horse_histories.get(hid, []),
             }
 
@@ -1074,6 +1091,54 @@ def batch_horse_data():
 
     except Exception as e:
         app.logger.exception('batch_horse_data failed')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/save_banushi', methods=['POST'])
+def save_banushi():
+    """
+    馬主マークURLを保存する。
+
+    Request:
+        {
+            "horse_id": "horse_id",
+            "banushi": "https://example.com/mark.png"
+        }
+
+    Response:
+        {
+            "success": true
+        }
+    """
+    try:
+        data = request.get_json()
+        horse_id = data.get('horse_id')
+        banushi = data.get('banushi')
+
+        if not horse_id:
+            return jsonify({'error': 'horse_id is required'}), 400
+
+        with get_analysis_connection() as conn:
+            # 馬が存在するか確認
+            cur = conn.execute('SELECT 1 FROM horse_data_hd WHERE horse_id = ?', (horse_id,))
+            if not cur.fetchone():
+                # 馬が存在しない場合は新規作成
+                conn.execute('''
+                    INSERT INTO horse_data_hd (horse_id, horse_name, sire, dam, banushi)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (horse_id, None, None, None, banushi))
+            else:
+                # 既存の馬のbanushiを更新
+                conn.execute('''
+                    UPDATE horse_data_hd
+                    SET banushi = ?
+                    WHERE horse_id = ?
+                ''', (banushi, horse_id))
+
+        return jsonify({'success': True}), 200
+
+    except Exception as e:
+        app.logger.exception('save_banushi failed')
         return jsonify({'error': str(e)}), 500
 
 

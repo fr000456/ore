@@ -506,6 +506,17 @@ function getRank(raceName) {
 function banushi(html, a) {
   var prof = $("<div>").html(html).find(".db_prof_table");
   var imgSrc = prof.find("img").attr("src");
+
+  // banushiをDBに保存
+  var horseId = a.attr("href")?.match(/horse\/([A-Za-z0-9\-]+)/)?.[1];
+  if (horseId && imgSrc) {
+    fetch("http://localhost:5000/save_banushi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ horse_id: horseId, banushi: imgSrc }),
+    }).catch((e) => console.error("banushi保存エラー:", e));
+  }
+
   var mark = $("<img></img>", { src: imgSrc }).css({
     display: "inline-block",
     width: "16px",

@@ -2,13 +2,13 @@
 // @name         horseDtl
 // @namespace    http://tampermonkey.net/
 // @version      1.0
-// @updateURL   https://raw.githubusercontent.com/fr000456/ore/main/horseDtl.js
-// @downloadURL https://raw.githubusercontent.com/fr000456/ore/main/horseDtl.js
+// @updateURL   https://cdn.jsdelivr.net/gh/fr000456/ore@main/horseDtl.js
+// @downloadURL https://cdn.jsdelivr.net/gh/fr000456/ore@main/horseDtl.js
 // @description  netkeiba馬ページ拡張
 // @include      https://db.netkeiba.com/horse/*
 // @require      https://code.jquery.com/jquery-3.6.0.min.js
-// @require      https://raw.githubusercontent.com/fr000456/ore/main/const.js
-// @require      https://raw.githubusercontent.com/fr000456/ore/main/common.js
+// @require      https://cdn.jsdelivr.net/gh/fr000456/ore@main/const.js
+// @require      https://cdn.jsdelivr.net/gh/fr000456/ore@main/common.js
 // @grant       GM.xmlHttpRequest
 // @connect     localhost
 // @connect     127.0.0.1
