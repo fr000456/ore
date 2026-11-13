@@ -20,6 +20,30 @@
 // ==/UserScript==
 
 (function ($) {
+  // const.jsのグローバル変数をIIFE内で参照
+  const kyoriIndex = window.kyoriIndex;
+  const corseIndex = window.corseIndex;
+  const tyakuIndex = window.tyakuIndex;
+  const babaIndex = window.babaIndex;
+  const agariIndex = window.agariIndex;
+  const tuukaIndex = window.tuukaIndex;
+  const raceIndex = window.raceIndex;
+  const hidukeIndex = window.hidukeIndex;
+  const kisyuIndex = window.kisyuIndex;
+  const paceIndex = window.paceIndex;
+  const eizouIndex = window.eizouIndex;
+  const timeIndex = window.timeIndex;
+  const bikouIndex = window.bikouIndex;
+
+  // const.jsの定数・配列を参照
+  const corseHidari = window.corseHidari;
+  const corseUchi = window.corseUchi;
+  const raceRank = window.raceRank;
+
+  // グローバル変数への参照（書き込み用）
+  let course = window.course;
+  let raceDate = window.raceDate;
+
   // -----------------------------------------------------------------------
   // 出馬表から非表示iframeとして読み込まれた馬詳細ページの処理
   // -----------------------------------------------------------------------
@@ -720,6 +744,7 @@
     } else if ($(".RaceData01").find('span:contains("ダ")').length > 0) {
       course = "ダ";
     }
+    window.course = course; // グローバルも更新
   }
 
   function parseRaceData(html) {
