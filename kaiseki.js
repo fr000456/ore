@@ -384,8 +384,11 @@
     }
 
     // 対象レース日付を取得（バッチAPIに渡し、未来レースを除外するため）
-    const raceDate = getRaceDate ? getRaceDate() : null;
-    const raceDateStr = raceDate || null;
+    // getRaceDate() は [year, month, date] 配列を返すので YYYY/MM/DD 形式に変換
+    const raceDateArr = getRaceDate ? getRaceDate() : null;
+    const raceDateStr = raceDateArr
+      ? `${String(raceDateArr[0]).padStart(4, "0")}/${String(raceDateArr[1]).padStart(2, "0")}/${String(raceDateArr[2]).padStart(2, "0")}`
+      : null;
 
     // 対象レースのコース・距離を出馬表ページから取得（解析・適性判定用）
     let targetCourse = null;
@@ -400,41 +403,58 @@
       if (distMatch) targetDistance = parseInt(distMatch[1], 10);
     }
 
-    // バッチAPIを1回呼び出し（全馬分の過去レースデータを一括取得）
-    let horses = {};
-    try {
-      const response = await fetch("http://localhost:5000/batch_horse_data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          horse_ids: horseIds,
-          race_date: raceDateStr,
-        }),
-      });
+    // JSONを受け取る関数（解析・適性）とHTMLを受け取る関数（その他）に分岐
+    const jsonFuncs = [funcKaiseki, funcTekisei];
+    const isJsonFunc = jsonFuncs.includes(aFunc);
 
-      if (response.ok) {
-        const result = await response.json();
-        horses = result.horses || {};
-      } else {
-        console.error("バッチデータ取得エラー:", response.status);
+    let horses = {};
+    if (isJsonFunc) {
+      // バッチAPIを1回呼び出し（全馬分の過去レースデータを一括取得）
+      try {
+        const response = await fetch("http://localhost:5000/batch_horse_data", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            horse_ids: horseIds,
+            race_date: raceDateStr,
+          }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          horses = result.horses || {};
+        } else {
+          console.error("バッチデータ取得エラー:", response.status);
+        }
+      } catch (e) {
+        console.error("バッチデータ取得失敗:", e);
       }
-    } catch (e) {
-      console.error("バッチデータ取得失敗:", e);
     }
 
     const promises = [];
     for (const horseId of horseIds) {
       const { horse, index } = horseMap[horseId];
-      const horseData = horses[horseId] || {
-        horse_id: horseId,
-        horse_name: null,
-        sire: null,
-        dam: null,
-        race_history: [],
-      };
 
-      const p = aFunc(horseData, horse, index, firstBlinkers, targetCourse, targetDistance);
-      promises.push(p);
+      if (isJsonFunc) {
+        // 解析・適性：JSONデータを渡す
+        const horseData = horses[horseId] || {
+          horse_id: horseId,
+          horse_name: null,
+          sire: null,
+          dam: null,
+          race_history: [],
+        };
+        const p = aFunc(horseData, horse, index, firstBlinkers, targetCourse, targetDistance);
+        promises.push(p);
+      } else {
+        // 馬場・ローテ・内回り・備考・血統など：従来通りHTMLを渡す
+        const p = getHtmlFromMap(horseId).then((html) => {
+          if (!html) return;
+          setIndex(html);
+          return aFunc(html, horse, index, firstBlinkers);
+        });
+        promises.push(p);
+      }
     }
 
     await Promise.all(promises);
@@ -899,15 +919,13 @@
     if (corseHidari.includes(corseVal)) {
       addSeiseki($("#hidariTd" + index), hidariSeisekiVal);
     } else {
-      //右回り
-      const allSeisekiVal = getSeisekiValFromJson(raceHistory, "course", []);
-      seisekiVal = [
-        allSeisekiVal[0] - hidariSeisekiVal[0],
-        allSeisekiVal[1] - hidariSeisekiVal[1],
-        allSeisekiVal[2] - hidariSeisekiVal[2],
-        allSeisekiVal[3] - hidariSeisekiVal[3],
-      ];
-      addSeiseki($("#migiTd" + index), seisekiVal);
+      //右回り（左回りレースと障害レースを除外）
+      const migiRaces = raceHistory.filter((r) => {
+        const c = r.course || "";
+        return !corseHidari.includes(c) && !c.includes("障");
+      });
+      const migiSeisekiVal = getSeisekiValFromJson(migiRaces, "course", []);
+      addSeiseki($("#migiTd" + index), migiSeisekiVal);
     }
     //コース
     seisekiVal = getSeisekiValFromJson(raceHistory, "course", [corseVal]);
@@ -977,8 +995,9 @@
     if (raceHistory[0].finish_position === 1) {
       return false;
     }
-    //前々走がＯＰ以上
-    if (getRank(raceHistory[1].race_class || "") > 4) {
+    //前々走がＯＰ以上（DBのrace_classは0-9の数値文字列、5以上がOP以上）
+    const prevClass = parseInt(raceHistory[1].race_class, 10);
+    if (!isNaN(prevClass) && prevClass >= 5) {
       return false;
     }
     //前々走が1着以外
@@ -989,8 +1008,10 @@
   }
 
   function kyori(raceHistory, targetDistance) {
+    // 目標距離が不明な場合は判定不可
+    if (!targetDistance) return false;
     // 前走が同距離ではない
-    if (raceHistory[0].distance === targetDistance) {
+    if (raceHistory[0].distance !== targetDistance) {
       return false;
     }
     // 二戦以上経験している（同距離の出走が1回だけ）
@@ -1477,12 +1498,13 @@
 
     if (raceHistory.length == 0) {
       addMark(a, txtHatsu, colHatsu);
-      banushi(null, a);
+      // JSONモードではHTMLがないためbanushiはスキップ（エラー回避）
+      try { banushi(null, a); } catch (e) { console.warn("banushi error (skipped in JSON mode):", e); }
       return false;
     }
 
     const flags = analyzeRaceData(raceHistory, raceDate, targetCourse, targetDistance);
     addMarks(a, flags, firstBlinkers);
-    banushi(null, a);
+    try { banushi(null, a); } catch (e) { console.warn("banushi error (skipped in JSON mode):", e); }
   }
 })(jQuery);
