@@ -20,20 +20,20 @@
 // ==/UserScript==
 
 (function ($) {
-  // const.jsのグローバル変数をIIFE内で参照
-  const kyoriIndex = window.kyoriIndex;
-  const corseIndex = window.corseIndex;
-  const tyakuIndex = window.tyakuIndex;
-  const babaIndex = window.babaIndex;
-  const agariIndex = window.agariIndex;
-  const tuukaIndex = window.tuukaIndex;
-  const raceIndex = window.raceIndex;
-  const hidukeIndex = window.hidukeIndex;
-  const kisyuIndex = window.kisyuIndex;
-  const paceIndex = window.paceIndex;
-  const eizouIndex = window.eizouIndex;
-  const timeIndex = window.timeIndex;
-  const bikouIndex = window.bikouIndex;
+  // const.jsのグローバル変数をIIFE内で参照（letで宣言してsetIndex後に更新可能に）
+  let kyoriIndex = window.kyoriIndex;
+  let corseIndex = window.corseIndex;
+  let tyakuIndex = window.tyakuIndex;
+  let babaIndex = window.babaIndex;
+  let agariIndex = window.agariIndex;
+  let tuukaIndex = window.tuukaIndex;
+  let raceIndex = window.raceIndex;
+  let hidukeIndex = window.hidukeIndex;
+  let kisyuIndex = window.kisyuIndex;
+  let paceIndex = window.paceIndex;
+  let eizouIndex = window.eizouIndex;
+  let timeIndex = window.timeIndex;
+  let bikouIndex = window.bikouIndex;
 
   // const.jsの定数・配列を参照
   const corseHidari = window.corseHidari;
@@ -43,6 +43,23 @@
   // グローバル変数への参照（書き込み用）
   let course = window.course;
   let raceDate = window.raceDate;
+
+  // setIndex()呼び出し後にグローバル変数を同期
+  function syncGlobalIndexes() {
+    kyoriIndex = window.kyoriIndex;
+    corseIndex = window.corseIndex;
+    tyakuIndex = window.tyakuIndex;
+    babaIndex = window.babaIndex;
+    agariIndex = window.agariIndex;
+    tuukaIndex = window.tuukaIndex;
+    raceIndex = window.raceIndex;
+    hidukeIndex = window.hidukeIndex;
+    kisyuIndex = window.kisyuIndex;
+    paceIndex = window.paceIndex;
+    eizouIndex = window.eizouIndex;
+    timeIndex = window.timeIndex;
+    bikouIndex = window.bikouIndex;
+  }
 
   // -----------------------------------------------------------------------
   // 出馬表から非表示iframeとして読み込まれた馬詳細ページの処理
@@ -480,6 +497,7 @@
         const p = getHtmlFromMap(horseId).then((html) => {
           if (!html) return;
           setIndex(html);
+          syncGlobalIndexes(); // グローバル変数をIIFE内ローカルに同期
           return aFunc(html, horse, index, firstBlinkers);
         });
         promises.push(p);
