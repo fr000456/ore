@@ -407,8 +407,8 @@
       else if (rtext.includes("ダ")) targetSurface = "ダート";
     }
 
-    // JSONを受け取る関数（解析・適性）とHTMLを受け取る関数（その他）に分岐
-    const jsonFuncs = [funcKaiseki, funcTekisei];
+    // JSONを受け取る関数（解析・適性・馬場・ローテ・内回り）とHTMLを受け取る関数（備考・血統）に分岐
+    const jsonFuncs = [funcKaiseki, funcTekisei, funcBaba, funcRota, funcUchi];
     const isJsonFunc = jsonFuncs.includes(aFunc);
 
     let horses = {};
@@ -440,7 +440,7 @@
       const { horse, index } = horseMap[horseId];
 
       if (isJsonFunc) {
-        // 解析・適性：JSONデータを渡す
+        // 解析・適性・馬場・ローテ・内回り：JSONデータを渡す
         const horseData = horses[horseId] || {
           horse_id: horseId,
           horse_name: null,
@@ -494,16 +494,19 @@
     return Promise.resolve();
   };
 
-  const funcBaba = function (html, a, index) {
-    babakaiseki(html, a, index);
+  const funcBaba = function (horseData, a, index) {
+    tekisei(horseData, index, "baba");
+    return Promise.resolve();
   };
 
-  const funcRota = function (html, a, index) {
-    rotation(html, a, index);
+  const funcRota = function (horseData, a, index) {
+    tekisei(horseData, index, "rota");
+    return Promise.resolve();
   };
 
-  const funcUchi = function (html, a, index) {
-    uchimawari(html, index);
+  const funcUchi = function (horseData, a, index) {
+    tekisei(horseData, index, "uchi");
+    return Promise.resolve();
   };
 
   const funcBikou = function (html, a, index) {
@@ -931,7 +934,7 @@
     }
   }
 
-  function tekisei(horseData, index) {
+  function tekisei(horseData, index, mode = "all") {
     const raceHistory = horseData.race_history || [];
 
     if (raceHistory.length == 0) {
@@ -982,7 +985,106 @@
     addSeiseki($("#ryouTd" + index), seisekiVal);
 
     //通過順
-    addTuukaFromJson($("#tuukaTd" + index), raceHistory);
+    if (mode === "all" || mode === "tuuka") {
+      addTuukaFromJson($("#tuukaTd" + index), raceHistory);
+    }
+
+    //馬場（JSON版）
+    if (mode === "all" || mode === "baba") {
+      const babaRaces = displayRaces.filter((r) => {
+        const tc = r.track_condition || "";
+        const checked = [];
+        if ($("#ryou").prop("checked")) checked.push("良");
+        if ($("#yaya").prop("checked")) checked.push("稍");
+        if ($("#omo").prop("checked")) checked.push("重");
+        if ($("#fu").prop("checked")) checked.push("不");
+        return checked.length === 0 || checked.includes(tc);
+      });
+      const babaSeisekiVal = getSeisekiValFromJson(babaRaces, "finish_position", []);
+      addSeiseki($("#babaTd" + index), babaSeisekiVal);
+    }
+
+    //ローテ（JSON版）
+    if (mode === "all" || mode === "rota") {
+      let yasumi = [0, 0, 0, 0];
+      let futu = [0, 0, 0, 0];
+      let ni = [0, 0, 0, 0];
+      let san = [0, 0, 0, 0];
+      let tukai = [0, 0, 0, 0];
+      let count = 0;
+      let pDate = null;
+
+      for (let i = raceHistory.length - 1; i >= 0; i--) {
+        const r = raceHistory[i];
+        const dateStr = r.race_date || "";
+        const date = dateStr.split("/").map(Number);
+
+        if (pDate != null) {
+          if (kankaku(date, pDate) > 90) {
+            count = 0;
+            yasumi = addSeisekiToArray(yasumi, r.finish_position);
+          } else if (kankaku(date, pDate) > 53) {
+            count = 0;
+            futu = addSeisekiToArray(futu, r.finish_position);
+          }
+        } else {
+          yasumi = addSeisekiToArray(yasumi, r.finish_position);
+        }
+
+        if (count == 1) {
+          ni = addSeisekiToArray(ni, r.finish_position);
+        } else if (count == 2) {
+          san = addSeisekiToArray(san, r.finish_position);
+        } else if (count > 2) {
+          tukai = addSeisekiToArray(tukai, r.finish_position);
+        }
+
+        count++;
+        pDate = date;
+      }
+
+      switch ($("#tataki").val()) {
+        case "0":
+          addSeiseki($("#rotaTd" + index), futu);
+          break;
+        case "1":
+          addSeiseki($("#rotaTd" + index), yasumi);
+          break;
+        case "2":
+          addSeiseki($("#rotaTd" + index), ni);
+          break;
+        case "3":
+          addSeiseki($("#rotaTd" + index), san);
+          break;
+        case "4":
+          addSeiseki($("#rotaTd" + index), tukai);
+          break;
+      }
+    }
+
+    //内回り（JSON版）
+    if (mode === "all" || mode === "uchi") {
+      let uchiSeisekiVal = [0, 0, 0, 0];
+      for (let i = 0; i < corseUchi.length; i++) {
+        const [c, d] = corseUchi[i];
+        const dist = parseInt(d.replace("芝", "").replace("ダ", ""));
+        const uchiRaces = displayRaces.filter(
+          (r) => r.course === c && r.distance === dist
+        );
+        for (let j = 0; j < uchiRaces.length; j++) {
+          uchiSeisekiVal = addSeisekiToArray(uchiSeisekiVal, uchiRaces[j].finish_position);
+        }
+      }
+      addSeiseki($("#uchiTd" + index), uchiSeisekiVal);
+    }
+  }
+
+  function addSeisekiToArray(arr, finishPos) {
+    if (finishPos === 1) arr[0]++;
+    else if (finishPos === 2) arr[1]++;
+    else if (finishPos === 3) arr[2]++;
+    else arr[3]++;
+    return arr;
   }
 
   function tataki(raceHistory, targetDate) {
