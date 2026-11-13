@@ -922,18 +922,23 @@
     const kyoriVal = $("#kyori").val();
     const corseVal = $("#corse").val();
 
-    // 対象レースが障害ならコース・両方の成績を障害のみに絞る
-    const isObstacleTarget = $(".RaceData01").find('span:contains("障")').length > 0;
-    const matchTargetSurface = (r) =>
-      !isObstacleTarget || (r.surface || "").includes("障");
+    // 表示成績は対象馬場（芝/ダ/障）のみで集計（旧getTyakujunと同等）
+    const matchDisplaySurface = (r) => {
+      const s = r.surface || "";
+      if (course === "芝") return s.includes("芝");
+      if (course === "ダ") return s.includes("ダ");
+      if (course === "障") return s.includes("障");
+      return true;
+    };
+    const displayRaces = raceHistory.filter(matchDisplaySurface);
 
-    const hidariSeisekiVal = getSeisekiValFromJson(raceHistory, "course", corseHidari);
+    const hidariSeisekiVal = getSeisekiValFromJson(displayRaces, "course", corseHidari);
     //左回り
     if (corseHidari.includes(corseVal)) {
       addSeiseki($("#hidariTd" + index), hidariSeisekiVal);
     } else {
       //右回り（左回りレースと障害レースを除外）
-      const migiRaces = raceHistory.filter((r) => {
+      const migiRaces = displayRaces.filter((r) => {
         const c = r.course || "";
         return !corseHidari.includes(c) && !c.includes("障");
       });
@@ -941,24 +946,19 @@
       addSeiseki($("#migiTd" + index), migiSeisekiVal);
     }
     //コース
-    const corseRaces = raceHistory.filter(
-      (r) => r.course == corseVal && matchTargetSurface(r)
-    );
+    const corseRaces = displayRaces.filter((r) => r.course == corseVal);
     seisekiVal = getSeisekiValFromJson(corseRaces, "course", []);
     addSeiseki($("#corseTd" + index), seisekiVal);
 
     //距離
     const kyoriFilter = parseKyoriFilter(kyoriVal);
-    const kyoriRaces = raceHistory.filter((r) => matchKyoriFilter(r, kyoriFilter));
+    const kyoriRaces = displayRaces.filter((r) => matchKyoriFilter(r, kyoriFilter));
     seisekiVal = getSeisekiValFromJson(kyoriRaces, "distance", []);
     addSeiseki($("#kyoriTd" + index), seisekiVal);
 
     //両方
-    const ryouRaces = raceHistory.filter(
-      (r) =>
-        r.course == corseVal &&
-        matchTargetSurface(r) &&
-        matchKyoriFilter(r, kyoriFilter)
+    const ryouRaces = displayRaces.filter(
+      (r) => r.course == corseVal && matchKyoriFilter(r, kyoriFilter)
     );
     seisekiVal = getSeisekiValFromJson(ryouRaces, "distance", []);
     addSeiseki($("#ryouTd" + index), seisekiVal);
