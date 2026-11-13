@@ -887,10 +887,18 @@
   }
 
   function matchKyoriFilter(race, filter) {
-    if (filter.distance == null) return true;
-    if (race.distance != filter.distance) return false;
-    if (filter.surface && race.surface !== filter.surface) return false;
+    if (filter.distance != null && race.distance != filter.distance) return false;
+    if (filter.surface && normSurface(race.surface) !== filter.surface) return false;
     return true;
+  }
+
+  // "芝"/"ダート"/"ダ"/"障害"/"障" 等を "芝"/"ダート"/"障害" に正規化
+  function normSurface(s) {
+    s = s || "";
+    if (s.includes("障")) return "障害";
+    if (s.includes("ダ")) return "ダート";
+    if (s.includes("芝")) return "芝";
+    return s;
   }
 
   function addTuukaFromJson(tgt, raceHistory) {
@@ -921,16 +929,16 @@
 
     const kyoriVal = $("#kyori").val();
     const corseVal = $("#corse").val();
+    const kyoriFilter = parseKyoriFilter(kyoriVal);
 
-    // 表示成績は対象馬場（芝/ダ/障）のみで集計（旧getTyakujunと同等）
-    const matchDisplaySurface = (r) => {
-      const s = r.surface || "";
-      if (course === "芝") return s.includes("芝");
-      if (course === "ダ") return s.includes("ダ");
-      if (course === "障") return s.includes("障");
-      return true;
-    };
-    const displayRaces = raceHistory.filter(matchDisplaySurface);
+    // 表示成績は馬場ごとに独立して集計。
+    // 距離欄に馬場指定（芝/ダ/障）があればそれを優先し、なければページの馬場を使う
+    const pageSurface =
+      course === "芝" ? "芝" : course === "ダ" ? "ダート" : course === "障" ? "障害" : null;
+    const displaySurface = kyoriFilter.surface || pageSurface;
+    const displayRaces = raceHistory.filter(
+      (r) => !displaySurface || normSurface(r.surface) === displaySurface
+    );
 
     const hidariSeisekiVal = getSeisekiValFromJson(displayRaces, "course", corseHidari);
     //左回り
@@ -951,7 +959,6 @@
     addSeiseki($("#corseTd" + index), seisekiVal);
 
     //距離
-    const kyoriFilter = parseKyoriFilter(kyoriVal);
     const kyoriRaces = displayRaces.filter((r) => matchKyoriFilter(r, kyoriFilter));
     seisekiVal = getSeisekiValFromJson(kyoriRaces, "distance", []);
     addSeiseki($("#kyoriTd" + index), seisekiVal);
