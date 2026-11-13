@@ -6,3 +6,10 @@ model.pkl
 training_data.pkl
 model_*_*.pkl
 training_data_*_*.pkl
+feature_importance.txt
+feature_importance/
+feature_importance_by_condition.txt
+promotion_2nd_analysis.txt
+promotion_2nd_combinations.txt
+promotion_second_context.pkl
+*.zip
