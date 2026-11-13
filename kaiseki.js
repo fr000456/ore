@@ -35,10 +35,19 @@
   let timeIndex = window.timeIndex;
   let bikouIndex = window.bikouIndex;
 
-  // const.jsの定数・配列を参照
-  const corseHidari = window.corseHidari;
-  const corseUchi = window.corseUchi;
-  const raceRank = window.raceRank;
+  // const.jsの定数・配列は使用時にwindow経由で参照（読み込み順序問題回避）
+  // const corseHidari = window.corseHidari;
+  // const corseUchi = window.corseUchi;
+  // const raceRank = window.raceRank;
+  const classR1ml = window.classR1ml;
+  const classR2ml = window.classR2ml;
+  const classR3ml = window.classR3ml;
+
+  // common.jsの関数を参照
+  const kankaku = window.kankaku;
+  const addSeiseki = window.addSeiseki;
+  const getTyakujun = window.getTyakujun;
+  const setIndex = window.setIndex;
 
   // グローバル変数への参照（書き込み用）
   let course = window.course;
@@ -94,7 +103,7 @@
     if (gradeTypeMatch) {
       return String({ 1: 9, 2: 8, 3: 7 }[gradeTypeMatch[1]]);
     }
-    const matchedRaceRank = raceRank.find(([name]) => text.includes(name));
+    const matchedRaceRank = window.raceRank.find(([name]) => text.includes(name));
     return matchedRaceRank ? String(matchedRaceRank[1]) : null;
   }
 
@@ -851,11 +860,11 @@
 
     let seisekiVal = [0, 0, 0, 0];
 
-    for (let i = 0; i < corseUchi.length; i++) {
+    for (let i = 0; i < window.corseUchi.length; i++) {
       const tgtTr = data
-        .find("td:eq(" + corseIndex + "):contains(" + corseUchi[i][0] + ")")
+        .find("td:eq(" + corseIndex + "):contains(" + window.corseUchi[i][0] + ")")
         .parent()
-        .find("td:eq(" + kyoriIndex + "):contains(" + corseUchi[i][1] + ")")
+        .find("td:eq(" + kyoriIndex + "):contains(" + window.corseUchi[i][1] + ")")
         .parent();
       for (let j = 0; j < tgtTr.length; j++) {
         seisekiVal = getTyakujun(seisekiVal, tgtTr.eq(j));
@@ -960,14 +969,14 @@
       (r) => !displaySurface || normSurface(r.surface) === displaySurface
     );
 
-    const hidariSeisekiVal = getSeisekiValFromJson(displayRaces, "course", corseHidari);
+    const hidariSeisekiVal = getSeisekiValFromJson(displayRaces, "course", window.corseHidari);
     //左回り
-    if (corseHidari.includes(corseVal)) {
+    if (window.corseHidari.includes(corseVal)) {
       addSeiseki($("#hidariTd" + index), hidariSeisekiVal);
     } else {
       //右回り（左回りレースを除外）
       const migiRaces = displayRaces.filter(
-        (r) => !corseHidari.includes(r.course || "")
+        (r) => !window.corseHidari.includes(r.course || "")
       );
       const migiSeisekiVal = getSeisekiValFromJson(migiRaces, "course", []);
       addSeiseki($("#migiTd" + index), migiSeisekiVal);
@@ -1364,7 +1373,7 @@
       : null;
     const matchedRaceRank = gradeTypeRank !== null
       ? [null, gradeTypeRank]
-      : raceRank.find(([name]) => raceName.includes(name));
+      : window.raceRank.find(([name]) => raceName.includes(name));
     if (!matchedRaceRank) {
       alert("レースクラスを取得できませんでした");
       activeButton.val(forceBacktest ? "過去検証" : "AI予想");
