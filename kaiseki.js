@@ -818,7 +818,19 @@
       }
     });
 
-    seisekiVal = getSeisekiVal(data, babaIndex, babaVal);
+    // 距離欄に馬場指定があれば馬場成績もそれに合わせる（getTyakujunはグローバルcourseを見る）
+    const kyoriSurface = parseKyoriFilter($("#kyori").val()).surface;
+    const prevCourse = course;
+    if (kyoriSurface === "芝") course = "芝";
+    else if (kyoriSurface === "ダート") course = "ダ";
+    else if (kyoriSurface === "障害") course = "障";
+
+    try {
+      seisekiVal = getSeisekiVal(data, babaIndex, babaVal);
+    } finally {
+      course = prevCourse;
+    }
+
     addSeiseki($("#babaTd" + index), seisekiVal);
   }
 
