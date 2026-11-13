@@ -2,8 +2,8 @@
 // @name         horseDtlToDBSenderWithCache
 // @namespace    netkeiba
 // @version      3.1
-// @updateURL   https://cdn.jsdelivr.net/gh/fr000456/ore@main/horseDtlToDBSenderWithCache.js
-// @downloadURL https://cdn.jsdelivr.net/gh/fr000456/ore@main/horseDtlToDBSenderWithCache.js
+// @updateURL   https://raw.githubusercontent.com/fr000456/ore/main/horseDtlToDBSenderWithCache.js
+// @downloadURL https://raw.githubusercontent.com/fr000456/ore/main/horseDtlToDBSenderWithCache.js
 // @match        https://db.netkeiba.com/horse/*
 // @grant        none
 // ==/UserScript==

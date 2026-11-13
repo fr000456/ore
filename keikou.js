@@ -2,8 +2,8 @@
 // @name keikou
 // @namespace    http://tampermonkey.net/
 // @version      0.1
-// @updateURL   https://cdn.jsdelivr.net/gh/fr000456/ore@main/keikou.js
-// @downloadURL https://cdn.jsdelivr.net/gh/fr000456/ore@main/keikou.js
+// @updateURL   https://raw.githubusercontent.com/fr000456/ore/main/keikou.js
+// @downloadURL https://raw.githubusercontent.com/fr000456/ore/main/keikou.js
 // @include https://db.netkeiba.com/?pid=race_list*
 // @include https://db.netkeiba.com/race/list*
 // @run-at       document-idle
@@ -12,8 +12,8 @@
 // @connect     127.0.0.1
 // @require https://code.jquery.com/jquery-3.6.0.min.js
 // @require https://cdnjs.cloudflare.com/ajax/libs/jquery.tablesorter/2.31.3/js/jquery.tablesorter.min.js
-// @require https://cdn.jsdelivr.net/gh/fr000456/ore@main/common.js
-// @require https://cdn.jsdelivr.net/gh/fr000456/ore@main/const.js
+// @require https://raw.githubusercontent.com/fr000456/ore/main/common.js?v=2
+// @require https://raw.githubusercontent.com/fr000456/ore/main/const.js
 // ==/UserScript==
 
 (function ($) {

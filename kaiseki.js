@@ -2,20 +2,21 @@
 // @name         kaiseki
 // @namespace    http://tampermonkey.net/
 // @version      0.8
-// @updateURL   https://cdn.jsdelivr.net/gh/fr000456/ore@main/kaiseki.js
-// @downloadURL https://cdn.jsdelivr.net/gh/fr000456/ore@main/kaiseki.js
+// @updateURL   https://raw.githubusercontent.com/fr000456/ore/main/kaiseki.js
+// @downloadURL https://raw.githubusercontent.com/fr000456/ore/main/kaiseki.js
 // @match        https://race.netkeiba.com/race/shutuba.html*
 // @match        https://nar.netkeiba.com/race/shutuba.html*
 // @match        https://race.netkeiba.com/race/shutuba_abroad.html*
+// @match        https://db.netkeiba.com/horse/*
 // @run-at       document-idle
 // @grant       GM.xmlHttpRequest
 // @connect     localhost
 // @connect     127.0.0.1
 // @connect     db.netkeiba.com
 // @require https://code.jquery.com/jquery-3.6.0.min.js
-// @require https://cdn.jsdelivr.net/gh/fr000456/ore@main/const.js
-// @require https://cdn.jsdelivr.net/gh/fr000456/ore@main/common.js
-// @require https://cdn.jsdelivr.net/gh/fr000456/ore@main/html.js
+// @require https://raw.githubusercontent.com/fr000456/ore/main/const.js
+// @require https://raw.githubusercontent.com/fr000456/ore/main/common.js?v=2
+// @require https://raw.githubusercontent.com/fr000456/ore/main/html.js
 // ==/UserScript==
 
 (function ($) {
@@ -1506,7 +1507,23 @@
     a.find("td").remove();
     a.find("img").remove();
 
-    // banushiマークを表示
+    if (raceHistory.length == 0) {
+      addMark(a, txtHatsu, colHatsu);
+      if (banushiUrl) {
+        const mark = $("<img></img>", { src: banushiUrl }).css({
+          display: "inline-block",
+          width: "16px",
+          margin: "-1px 0",
+          "margin-right": "8px",
+        });
+        a.prepend(mark);
+      }
+      return false;
+    }
+
+    const flags = analyzeRaceData(raceHistory, raceDate, targetCourse, targetDistance, targetSurface);
+    addMarks(a, flags, firstBlinkers);
+
     if (banushiUrl) {
       const mark = $("<img></img>", { src: banushiUrl }).css({
         display: "inline-block",
@@ -1516,13 +1533,5 @@
       });
       a.prepend(mark);
     }
-
-    if (raceHistory.length == 0) {
-      addMark(a, txtHatsu, colHatsu);
-      return false;
-    }
-
-    const flags = analyzeRaceData(raceHistory, raceDate, targetCourse, targetDistance, targetSurface);
-    addMarks(a, flags, firstBlinkers);
   }
 })(jQuery);

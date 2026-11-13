@@ -7,11 +7,11 @@
 // @connect      localhost
 // @connect      127.0.0.1
 // @require      https://code.jquery.com/jquery-3.6.0.min.js
-// @require      https://cdn.jsdelivr.net/gh/fr000456/ore@main/const.js
-// @require      https://cdn.jsdelivr.net/gh/fr000456/ore@main/common.js
-// @updateURL   https://cdn.jsdelivr.net/gh/fr000456/ore@main/result.js
-// @downloadURL https://cdn.jsdelivr.net/gh/fr000456/ore@main/result.js
-// @require      https://cdn.jsdelivr.net/gh/fr000456/ore@main/html.js
+// @require      https://raw.githubusercontent.com/fr000456/ore/main/const.js
+// @require      https://raw.githubusercontent.com/fr000456/ore/main/common.js?v=2
+// @updateURL   https://raw.githubusercontent.com/fr000456/ore/main/result.js
+// @downloadURL https://raw.githubusercontent.com/fr000456/ore/main/result.js
+// @require      https://raw.githubusercontent.com/fr000456/ore/main/html.js
 // ==/UserScript==
 
 (function () {
