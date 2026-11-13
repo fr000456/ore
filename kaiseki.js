@@ -20,55 +20,8 @@
 // ==/UserScript==
 
 (function ($) {
-  // const.jsのグローバル変数をIIFE内で参照（letで宣言してsetIndex後に更新可能に）
-  let kyoriIndex = window.kyoriIndex;
-  let corseIndex = window.corseIndex;
-  let tyakuIndex = window.tyakuIndex;
-  let babaIndex = window.babaIndex;
-  let agariIndex = window.agariIndex;
-  let tuukaIndex = window.tuukaIndex;
-  let raceIndex = window.raceIndex;
-  let hidukeIndex = window.hidukeIndex;
-  let kisyuIndex = window.kisyuIndex;
-  let paceIndex = window.paceIndex;
-  let eizouIndex = window.eizouIndex;
-  let timeIndex = window.timeIndex;
-  let bikouIndex = window.bikouIndex;
-
   // const.jsの定数・配列は使用時にwindow経由で参照（読み込み順序問題回避）
-  // const corseHidari = window.corseHidari;
-  // const corseUchi = window.corseUchi;
-  // const raceRank = window.raceRank;
-  const classR1ml = window.classR1ml;
-  const classR2ml = window.classR2ml;
-  const classR3ml = window.classR3ml;
-
-  // common.jsの関数を参照
-  const kankaku = window.kankaku;
-  const addSeiseki = window.addSeiseki;
-  const getTyakujun = window.getTyakujun;
-  const setIndex = window.setIndex;
-
-  // グローバル変数への参照（書き込み用）
-  let course = window.course;
-  let raceDate = window.raceDate;
-
-  // setIndex()呼び出し後にグローバル変数を同期
-  function syncGlobalIndexes() {
-    kyoriIndex = window.kyoriIndex;
-    corseIndex = window.corseIndex;
-    tyakuIndex = window.tyakuIndex;
-    babaIndex = window.babaIndex;
-    agariIndex = window.agariIndex;
-    tuukaIndex = window.tuukaIndex;
-    raceIndex = window.raceIndex;
-    hidukeIndex = window.hidukeIndex;
-    kisyuIndex = window.kisyuIndex;
-    paceIndex = window.paceIndex;
-    eizouIndex = window.eizouIndex;
-    timeIndex = window.timeIndex;
-    bikouIndex = window.bikouIndex;
-  }
+  // common.jsの関数も使用時にwindow経由で参照
 
   // -----------------------------------------------------------------------
   // 出馬表から非表示iframeとして読み込まれた馬詳細ページの処理
@@ -505,8 +458,7 @@
         // 馬場・ローテ・内回り・備考・血統など：従来通りHTMLを渡す
         const p = getHtmlFromMap(horseId).then((html) => {
           if (!html) return;
-          setIndex(html);
-          syncGlobalIndexes(); // グローバル変数をIIFE内ローカルに同期
+          window.setIndex(html);
           return aFunc(html, horse, index, firstBlinkers);
         });
         promises.push(p);
@@ -765,13 +717,12 @@
   function setConst() {
     //コース
     if ($(".RaceData01").find('span:contains("障")').length > 0) {
-      course = "障";
+      window.course = "障";
     } else if ($(".RaceData01").find('span:contains("芝")').length > 0) {
-      course = "芝";
+      window.course = "芝";
     } else if ($(".RaceData01").find('span:contains("ダ")').length > 0) {
-      course = "ダ";
+      window.course = "ダ";
     }
-    window.course = course; // グローバルも更新
   }
 
   function parseRaceData(html) {
@@ -809,23 +760,23 @@
         .split("/");
 
       if (pDate != null) {
-        if (kankaku(date, pDate) > 90) {
+        if (window.kankaku(date, pDate) > 90) {
           count = 0;
-          yasumi = getTyakujun(yasumi, tr);
-        } else if (kankaku(date, pDate) > 53) {
+          yasumi = window.getTyakujun(yasumi, tr);
+        } else if (window.kankaku(date, pDate) > 53) {
           count = 0;
-          futu = getTyakujun(futu, tr);
+          futu = window.getTyakujun(futu, tr);
         }
       } else {
-        yasumi = getTyakujun(yasumi, tr);
+        yasumi = window.getTyakujun(yasumi, tr);
       }
 
       if (count == 1) {
-        ni = getTyakujun(ni, tr);
+        ni = window.getTyakujun(ni, tr);
       } else if (count == 2) {
-        san = getTyakujun(san, tr);
+        san = window.getTyakujun(san, tr);
       } else if (count > 2) {
-        tukai = getTyakujun(tukai, tr);
+        tukai = window.getTyakujun(tukai, tr);
       }
 
       count++;
@@ -834,19 +785,19 @@
 
     switch (a.find("#tataki").val()) {
       case "0":
-        addSeiseki($("#rotaTd" + index), futu);
+        window.addSeiseki($("#rotaTd" + index), futu);
         break;
       case "1":
-        addSeiseki($("#rotaTd" + index), yasumi);
+        window.addSeiseki($("#rotaTd" + index), yasumi);
         break;
       case "2":
-        addSeiseki($("#rotaTd" + index), ni);
+        window.addSeiseki($("#rotaTd" + index), ni);
         break;
       case "3":
-        addSeiseki($("#rotaTd" + index), san);
+        window.addSeiseki($("#rotaTd" + index), san);
         break;
       case "4":
-        addSeiseki($("#rotaTd" + index), tukai);
+        window.addSeiseki($("#rotaTd" + index), tukai);
         break;
     }
   }
@@ -972,31 +923,31 @@
     const hidariSeisekiVal = getSeisekiValFromJson(displayRaces, "course", window.corseHidari);
     //左回り
     if (window.corseHidari.includes(corseVal)) {
-      addSeiseki($("#hidariTd" + index), hidariSeisekiVal);
+      window.addSeiseki($("#hidariTd" + index), hidariSeisekiVal);
     } else {
       //右回り（左回りレースを除外）
       const migiRaces = displayRaces.filter(
         (r) => !window.corseHidari.includes(r.course || "")
       );
       const migiSeisekiVal = getSeisekiValFromJson(migiRaces, "course", []);
-      addSeiseki($("#migiTd" + index), migiSeisekiVal);
+      window.addSeiseki($("#migiTd" + index), migiSeisekiVal);
     }
     //コース
     const corseRaces = displayRaces.filter((r) => r.course == corseVal);
     seisekiVal = getSeisekiValFromJson(corseRaces, "course", []);
-    addSeiseki($("#corseTd" + index), seisekiVal);
+    window.addSeiseki($("#corseTd" + index), seisekiVal);
 
     //距離
     const kyoriRaces = displayRaces.filter((r) => matchKyoriFilter(r, kyoriFilter));
     seisekiVal = getSeisekiValFromJson(kyoriRaces, "distance", []);
-    addSeiseki($("#kyoriTd" + index), seisekiVal);
+    window.addSeiseki($("#kyoriTd" + index), seisekiVal);
 
     //両方
     const ryouRaces = displayRaces.filter(
       (r) => r.course == corseVal && matchKyoriFilter(r, kyoriFilter)
     );
     seisekiVal = getSeisekiValFromJson(ryouRaces, "distance", []);
-    addSeiseki($("#ryouTd" + index), seisekiVal);
+    window.addSeiseki($("#ryouTd" + index), seisekiVal);
 
     //通過順
     addTuukaFromJson($("#tuukaTd" + index), raceHistory);
@@ -1012,7 +963,7 @@
       return checked.length === 0 || checked.includes(tc);
     });
     const babaSeisekiVal = getSeisekiValFromJson(babaRaces, "finish_position", []);
-    addSeiseki($("#babaTd" + index), babaSeisekiVal);
+    window.addSeiseki($("#babaTd" + index), babaSeisekiVal);
   }
 
   function tataki(raceHistory, targetDate) {
