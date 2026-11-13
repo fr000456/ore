@@ -131,5 +131,5 @@ function setIndex(html) {
   paceIndex = getIndex(html, "ペース");
   bikouIndex = getIndex(html, "備考");
   eizouIndex = getIndex(html, "映像");
-  timeIndex = getIndex(html, "ﾀｲﾑ指数");
+  timeIndex = $(html).find(".db_h_race_results").find("th.TimeIndexHeadCell01").index();
 }

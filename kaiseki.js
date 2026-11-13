@@ -1,16 +1,18 @@
 // ==UserScript==
 // @name         kaiseki
 // @namespace    http://tampermonkey.net/
-// @version      0.2
+// @version      0.8
 // @updateURL   https://raw.githubusercontent.com/fr000456/ore/main/kaiseki.js
 // @downloadURL https://raw.githubusercontent.com/fr000456/ore/main/kaiseki.js
 // @match        https://race.netkeiba.com/race/shutuba.html*
 // @match        https://nar.netkeiba.com/race/shutuba.html*
 // @match        https://race.netkeiba.com/race/shutuba_abroad.html*
+// @match        https://db.netkeiba.com/horse/*
 // @run-at       document-idle
 // @grant       GM.xmlHttpRequest
 // @connect     localhost
 // @connect     127.0.0.1
+// @connect     db.netkeiba.com
 // @require https://code.jquery.com/jquery-3.6.0.min.js
 // @require https://raw.githubusercontent.com/fr000456/ore/main/const.js
 // @require https://raw.githubusercontent.com/fr000456/ore/main/common.js
@@ -18,6 +20,17 @@
 // ==/UserScript==
 
 (function ($) {
+  // -----------------------------------------------------------------------
+  // 出馬表から非表示iframeとして読み込まれた馬詳細ページの処理
+  // -----------------------------------------------------------------------
+  if (
+    window.location.hostname === "db.netkeiba.com" &&
+    window.location.search.includes("from_shutuba=1")
+  ) {
+    handleIframeHorsePage();
+    return;
+  }
+
   if (window.__kaisekiInitDone) return;
   window.__kaisekiInitDone = true;
 
@@ -35,6 +48,314 @@
     }, interval);
   }
 
+  function getRaceClassValue(text, gradeTypeClass = "") {
+    const gradeTypeMatch = gradeTypeClass.match(/\bIcon_GradeType([123])\b/);
+    if (gradeTypeMatch) {
+      return String({ 1: 9, 2: 8, 3: 7 }[gradeTypeMatch[1]]);
+    }
+    const matchedRaceRank = raceRank.find(([name]) => text.includes(name));
+    return matchedRaceRank ? String(matchedRaceRank[1]) : null;
+  }
+
+  function hasSavedRaceSnapshot(key, snapshotId) {
+    try {
+      return localStorage.getItem(key) === snapshotId;
+    } catch (error) {
+      console.warn("[race save] 保存済み状態を確認できません。", error);
+      return false;
+    }
+  }
+
+  function markRaceSnapshotSaved(key, snapshotId) {
+    try {
+      localStorage.setItem(key, snapshotId);
+    } catch (error) {
+      console.warn("[race save] 保存済み状態を記録できません。", error);
+    }
+  }
+
+  async function saveShutubaRacePage() {
+    const raceId = new URL(window.location.href).searchParams.get("race_id");
+    if (
+      window.location.hostname !== "race.netkeiba.com" ||
+      !window.location.pathname.endsWith("/race/shutuba.html") ||
+      !/^\d{12}$/.test(raceId || "")
+    ) {
+      throw new Error("出馬表ページまたはレースIDが不正です。");
+    }
+
+    const table = document.querySelector("table.Shutuba_Table");
+    if (!table) {
+      throw new Error("出馬表テーブルが見つかりません。");
+    }
+
+    const title = document.querySelector("title")?.textContent || "";
+    const dateMatch = title.match(
+      /(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日/,
+    );
+    const raceData = document.querySelector(".RaceData01")?.textContent || "";
+    const course = document.querySelectorAll(".RaceData02 span")[1]
+      ?.textContent.trim() || null;
+    const distanceMatch = raceData.match(/(\d+)\s*m/);
+    const surfaceMatch = raceData.match(/(芝|ダ|障)/);
+    const raceName = document.querySelector(".RaceName")?.textContent.trim() ||
+      null;
+    const gradeTypeClass =
+      document.querySelector(".RaceName .Icon_GradeType")?.className || "";
+    const raceClass = getRaceClassValue(
+      `${raceName || ""} ${title}`,
+      gradeTypeClass,
+    );
+
+    if (!dateMatch || !course || !distanceMatch || !surfaceMatch) {
+      throw new Error(
+        `出馬表からレース情報を取得できません (race_id=${raceId})`,
+      );
+    }
+
+    const race = {
+      race_id: raceId,
+      race_date: `${dateMatch[1]}/${dateMatch[2].padStart(2, "0")}/${dateMatch[3].padStart(2, "0")}`,
+      course,
+      surface: { 芝: "芝", ダ: "ダート", 障: "障害" }[surfaceMatch[1]],
+      distance: Number(distanceMatch[1]),
+      race_class: raceClass,
+      declared_field_size: table.querySelectorAll("tr.HorseList").length || null,
+      race_name: raceName,
+    };
+
+    const html = document.documentElement.outerHTML;
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(html),
+    );
+    const hash = Array.from(new Uint8Array(digest))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+    const snapshotId = `shutuba-${raceId}-${hash}`;
+    const sentKey = `raceEntrySaved:shutuba:${raceId}`;
+    if (hasSavedRaceSnapshot(sentKey, snapshotId)) {
+      return "already_saved";
+    }
+
+    const response = await new Promise((resolve, reject) => {
+      GM.xmlHttpRequest({
+        method: "POST",
+        url: "http://localhost:5000/save_race",
+        headers: { "Content-Type": "application/json" },
+        data: JSON.stringify({
+          race,
+          page_type: "shutuba",
+          source_url: window.location.href,
+          html,
+          snapshot_id: snapshotId,
+        }),
+        timeout: 20000,
+        onload: resolve,
+        onerror: reject,
+        ontimeout: () => reject(new Error("API通信がタイムアウトしました。")),
+      });
+    });
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(
+        `HTTP ${response.status}: ${response.responseText || "保存に失敗しました。"}`,
+      );
+    }
+
+    let responseData;
+    try {
+      responseData = JSON.parse(response.responseText);
+    } catch (error) {
+      throw new Error("APIの成功応答を解析できません。");
+    }
+    if (
+      responseData.race_id !== raceId ||
+      responseData.page_type !== "shutuba" ||
+      responseData.snapshot_id !== snapshotId
+    ) {
+      throw new Error("API応答が保存内容と一致しません。");
+    }
+
+    markRaceSnapshotSaved(sentKey, snapshotId);
+    return "saved";
+  }
+
+  // -----------------------------------------------------------------------
+  // 出馬表ボタン用: 非表示iframeによる馬ページ描画待ち保存処理
+  // -----------------------------------------------------------------------
+
+  /**
+   * db.netkeiba.com の iframe 内で実行される処理:
+   * テーブル描画完了を待ってから /save_horse_for_race に送信し、親へ postMessage で通知する。
+   */
+  function handleIframeHorsePage() {
+    const horseId = window.location.pathname.match(/horse\/([A-Za-z0-9\-]+)/)?.[1];
+    const urlParams = new URLSearchParams(window.location.search);
+    const raceDate = urlParams.get("race_date");
+
+    if (!horseId) {
+      window.parent.postMessage({ type: "horse_saved_from_iframe", horseId: null, error: "horseId not found" }, "*");
+      return;
+    }
+
+    const start = Date.now();
+    const timer = setInterval(() => {
+      const resultsTable = document.querySelector(".db_h_race_results");
+      const rows = document.querySelectorAll(".db_h_race_results tbody tr");
+      const prof = document.querySelector(".db_prof_table");
+      const elapsed = Date.now() - start;
+
+      let isReady = false;
+      if (resultsTable) {
+        if (rows.length > 0) {
+          // 行が存在し、テキストが描画されているか判定
+          for (const tr of rows) {
+            if (tr.textContent.trim()) {
+              isReady = true;
+              break;
+            }
+          }
+        } else if (elapsed >= 2000) {
+          // 2秒待っても行が0件なら、本当に未出走馬と判定
+          isReady = true;
+        }
+      }
+
+      // 描画完了または最大10秒待機で送信
+      if (isReady || elapsed > 10000) {
+        clearInterval(timer);
+
+        const wrapper = document.createElement("div");
+        if (prof) wrapper.appendChild(prof.cloneNode(true));
+        if (resultsTable) wrapper.appendChild(resultsTable.cloneNode(true));
+
+        const extractedHtml = wrapper.innerHTML;
+
+        fetch("http://localhost:5000/save_horse_for_race", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ horseId, html: extractedHtml, raceDate, force: false }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            window.parent.postMessage(
+              { type: "horse_saved_from_iframe", horseId, success: true, result: data },
+              "*",
+            );
+          })
+          .catch((err) => {
+            window.parent.postMessage(
+              { type: "horse_saved_from_iframe", horseId, success: false, error: err.message },
+              "*",
+            );
+          });
+      }
+    }, 250);
+  }
+
+  /**
+   * 出馬表ページ側:
+   * 非表示iframeを使い、1頭ずつ安全な間隔（1秒）を空けて順次描画・保存する。
+   */
+  async function saveAllHorsesForRace(horseIds, raceDate, statusEl) {
+    const results = { saved: 0, skipped: 0, failed: [], skippedDetails: [] };
+
+    let iframe = document.getElementById("horseSaveFrame");
+    if (!iframe) {
+      iframe = document.createElement("iframe");
+      iframe.id = "horseSaveFrame";
+      iframe.style.position = "fixed";
+      iframe.style.width = "1px";
+      iframe.style.height = "1px";
+      iframe.style.left = "-9999px";
+      iframe.style.top = "-9999px";
+      iframe.style.visibility = "hidden";
+      document.body.appendChild(iframe);
+    }
+
+    for (let i = 0; i < horseIds.length; i++) {
+      const horseId = horseIds[i];
+      statusEl.text(`[${i + 1}/${horseIds.length}頭] 馬データ描画・保存中... (${horseId})`);
+
+      try {
+        const result = await new Promise((resolve) => {
+          let resolved = false;
+
+          const onMessage = (event) => {
+            if (
+              event.data?.type === "horse_saved_from_iframe" &&
+              event.data.horseId === horseId
+            ) {
+              window.removeEventListener("message", onMessage);
+              resolved = true;
+              resolve(event.data);
+            }
+          };
+          window.addEventListener("message", onMessage);
+
+          // タイムアウト監視（12秒）
+          setTimeout(() => {
+            if (!resolved) {
+              window.removeEventListener("message", onMessage);
+              resolve({
+                success: false,
+                error: "タイムアウト（描画が完了しませんでした）",
+              });
+            }
+          }, 12000);
+
+          // iframe に対象馬のURLを設定
+          iframe.src = `https://db.netkeiba.com/horse/${horseId}/?from_shutuba=1&race_date=${encodeURIComponent(raceDate)}`;
+        });
+
+        console.log(`[horse save iframe] ${horseId}:`, result);
+
+        if (!result.success) {
+          results.failed.push({ horseId, reason: result.error });
+        } else if (result.result?.skipped) {
+          results.skipped++;
+          results.skippedDetails.push(`${horseId} (DB:${result.result.db_race_count} >= HTML:${result.result.html_race_count})`);
+        } else {
+          results.saved++;
+        }
+      } catch (error) {
+        console.error(`[horse save] ${horseId} 失敗:`, error);
+        results.failed.push({ horseId, reason: error.message });
+      }
+
+      // アクセス制限防止のためのインターバル（約1秒）
+      if (i < horseIds.length - 1) {
+        statusEl.text(`[${i + 1}/${horseIds.length}頭] 待機中...`);
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+
+    // 後始末
+    if (iframe && iframe.parentNode) {
+      iframe.parentNode.removeChild(iframe);
+    }
+
+    // 保存完了後、親ページの horseHtmlCache を破棄して「適性」「解析」で最新DBデータを読めるようにする
+    if (typeof horseHtmlCache !== "undefined") {
+      horseIds.forEach((id) => delete horseHtmlCache[id]);
+    }
+
+    // 結果サマリーを表示
+    let summary = `馬データ: 更新${results.saved}頭 / スキップ${results.skipped}頭`;
+    if (results.skippedDetails.length > 0) {
+      console.log("[horse save] スキップ内訳:", results.skippedDetails);
+    }
+    if (results.failed.length > 0) {
+      summary += ` / 失敗${results.failed.length}頭`;
+      console.warn("[horse save] 失敗した馬:", results.failed);
+    }
+    statusEl.text(summary);
+
+    return results;
+  }
+
+  // -----------------------------------------------------------------------
+
   async function kaiseki(aFunc, useFirstBlinker = true) {
     const a = $(".HorseName").find("a");
 
@@ -42,8 +363,9 @@
 
     const firstBlinkers = useFirstBlinker ? await getFirstBlinkerHorses() : [];
 
-    const promises = [];
-
+    // 馬IDリストを収集
+    const horseIds = [];
+    const horseMap = {};
     for (let index = 0; index < a.length; index++) {
       const horse = a.eq(index);
       const href = horse.attr("href");
@@ -52,15 +374,66 @@
       if (!match) continue;
 
       const horseId = match[1].trim();
+      horseIds.push(horseId);
+      horseMap[horseId] = { horse, index };
+    }
 
-      const p = getHtmlFromMap(horseId).then((html) => {
-        if (!html) return;
+    if (horseIds.length === 0) {
+      $("#kaiseki").val("解析");
+      return;
+    }
 
-        setIndex(html);
+    // 対象レース日付を取得（バッチAPIに渡し、未来レースを除外するため）
+    const raceDate = getRaceDate ? getRaceDate() : null;
+    const raceDateStr = raceDate || null;
 
-        return aFunc(html, horse, index, firstBlinkers);
+    // 対象レースのコース・距離を出馬表ページから取得（解析・適性判定用）
+    let targetCourse = null;
+    let targetDistance = null;
+    const raceData01 = $(".RaceData01");
+    if (raceData01.length > 0) {
+      const rtext = raceData01.text();
+      if (rtext.includes("障")) targetCourse = "障";
+      else if (rtext.includes("芝")) targetCourse = "芝";
+      else if (rtext.includes("ダ")) targetCourse = "ダ";
+      const distMatch = rtext.match(/(\d{4})m/);
+      if (distMatch) targetDistance = parseInt(distMatch[1], 10);
+    }
+
+    // バッチAPIを1回呼び出し（全馬分の過去レースデータを一括取得）
+    let horses = {};
+    try {
+      const response = await fetch("http://localhost:5000/batch_horse_data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          horse_ids: horseIds,
+          race_date: raceDateStr,
+        }),
       });
 
+      if (response.ok) {
+        const result = await response.json();
+        horses = result.horses || {};
+      } else {
+        console.error("バッチデータ取得エラー:", response.status);
+      }
+    } catch (e) {
+      console.error("バッチデータ取得失敗:", e);
+    }
+
+    const promises = [];
+    for (const horseId of horseIds) {
+      const { horse, index } = horseMap[horseId];
+      const horseData = horses[horseId] || {
+        horse_id: horseId,
+        horse_name: null,
+        sire: null,
+        dam: null,
+        race_history: [],
+      };
+
+      const p = aFunc(horseData, horse, index, firstBlinkers, targetCourse, targetDistance);
       promises.push(p);
     }
 
@@ -87,12 +460,12 @@
     changeTableDtl(a, index);
   };
 
-  const funcKaiseki = function (html, a, index, firstBlinkers) {
-    doKaiseki(html, a, firstBlinkers);
+  const funcKaiseki = function (horseData, a, index, firstBlinkers, targetCourse, targetDistance) {
+    doKaiseki(horseData, a, firstBlinkers, targetCourse, targetDistance);
   };
 
-  const funcTekisei = function (html, a, index) {
-    tekisei(html, index);
+  const funcTekisei = function (horseData, a, index) {
+    tekisei(horseData, index);
     return Promise.resolve();
   };
 
@@ -159,9 +532,77 @@
 
     // AI予想ボタン追加
     $("#AllRaceSubMenu").append(
-      '<input type="button" value="AI予想" id="aiPredict">',
+      '<input type="button" value="AI予想" id="aiPredict"> ' +
+      '<input type="button" value="過去検証" id="aiBacktest">',
     );
-    $("#aiPredict").on("click", aiPredict);
+    if (
+      window.location.hostname === "race.netkeiba.com" &&
+      window.location.pathname.endsWith("/race/shutuba.html")
+    ) {
+      $("#AllRaceSubMenu").append(
+        ' <input type="button" value="出馬表をDBに保存" id="saveRaceEntry"> ' +
+        '<span id="saveRaceEntryStatus" role="status" aria-live="polite"></span>',
+      );
+      $("#saveRaceEntry").on("click", async function () {
+        const button = $(this);
+        const status = $("#saveRaceEntryStatus");
+        button.prop("disabled", true);
+
+        try {
+          // ① race_master / race_entry / race_entry_snapshot に保存（既存処理）
+          status.text("出馬表保存中...");
+          const raceResult = await saveShutubaRacePage();
+          status.text(
+            raceResult === "already_saved"
+              ? "出馬表保存済み / 馬データ取得準備中..."
+              : "出馬表保存成功 / 馬データ取得準備中...",
+          );
+
+          // ② レース日付を取得（タイトルから: "2026年11月1日" 形式）
+          const title = $("title").text();
+          const dateMatch = title.match(
+            /(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日/,
+          );
+          if (!dateMatch) {
+            throw new Error("レース日付をタイトルから取得できません");
+          }
+          const raceDate = `${dateMatch[1]}/${dateMatch[2].padStart(2, "0")}/${dateMatch[3].padStart(2, "0")}`;
+
+          // ③ 出馬表から horse_id リストを収集
+          const horseIds = [];
+          $(".HorseName")
+            .find("a")
+            .each(function () {
+              const href = $(this).attr("href");
+              if (href) {
+                const match = href.match(/horse\/([A-Za-z0-9\-]+)/);
+                if (match && !horseIds.includes(match[1])) {
+                  horseIds.push(match[1]);
+                }
+              }
+            });
+
+          if (horseIds.length === 0) {
+            status.text("出馬表保存成功（出走馬のIDが見つかりません）");
+            return;
+          }
+
+          // ④ 各馬の過去走データを順次取得・更新（raceDate より前のみ保存）
+          await saveAllHorsesForRace(horseIds, raceDate, status);
+        } catch (error) {
+          console.error("[race save] 出馬表保存失敗", error);
+          status.text("保存失敗: " + error.message);
+        } finally {
+          button.prop("disabled", false);
+        }
+      });
+    }
+    $("#aiPredict").on("click", function () {
+      aiPredict(false);
+    });
+    $("#aiBacktest").on("click", function () {
+      aiPredict(true);
+    });
   }
 
   function changeCss() {
@@ -391,60 +832,50 @@
     $("#bikouTd" + index).text(bikouVal.replace(/&nbsp;/g, ""));
   }
 
-  function tekisei(html, index) {
-    const data = parseRaceData(html);
+  // --- JSONデータ用ヘルパー関数（tekisei等で使用） ---
 
-    if (data.length == 0) {
-      return false;
+  function getSeisekiValFromJson(raceHistory, field, targetVals) {
+    const result = [0, 0, 0, 0];
+    for (const race of raceHistory) {
+      const val = race[field];
+      if (targetVals.length === 0 || targetVals.includes(val)) {
+        const finish = race.finish_position;
+        if (finish != null && finish <= 4) {
+          result[finish - 1]++;
+        } else if (finish != null) {
+          result[3]++;
+        }
+      }
     }
-    let seisekiVal = [0, 0, 0, 0];
-
-    const kyoriVal = $("#kyori").val();
-    const corseVal = $("#corse").val();
-
-    const hidariSeisekiVal = getSeisekiVal(data, corseIndex, corseHidari);
-    //左回り
-    if (corseHidari.includes(corseVal)) {
-      addSeiseki($("#hidariTd" + index), hidariSeisekiVal);
-    } else {
-      //右回り
-      seisekiVal = getSeisekiValNot(data, corseIndex, hidariSeisekiVal);
-      addSeiseki($("#migiTd" + index), seisekiVal);
-    }
-    //コース
-    seisekiVal = getSeisekiVal(data, corseIndex, [corseVal]);
-    addSeiseki($("#corseTd" + index), seisekiVal);
-
-    //距離
-    seisekiVal = getSeisekiVal(data, kyoriIndex, [kyoriVal]);
-    addSeiseki($("#kyoriTd" + index), seisekiVal);
-
-    //両方
-    seisekiVal = getMultiSeisekiVal(
-      data,
-      corseIndex,
-      kyoriIndex,
-      corseVal,
-      kyoriVal,
-    );
-    addSeiseki($("#ryouTd" + index), seisekiVal);
-
-    //通過順
-    addTuuka($("#tuukaTd" + index), data);
+    return result;
   }
 
-  function addTuuka(tgt, data) {
-    const td = $(data).eq(0).find("td");
-    const tuukaVal = td.eq(tuukaIndex).html();
-    const color = td.eq(agariIndex).attr("class");
+  function getMultiSeisekiValFromJson(raceHistory, field1, field2, val1, val2) {
+    const result = [0, 0, 0, 0];
+    for (const race of raceHistory) {
+      if (race[field1] == val1 && race[field2] == val2) {
+        const finish = race.finish_position;
+        if (finish != null && finish <= 4) {
+          result[finish - 1]++;
+        } else if (finish != null) {
+          result[3]++;
+        }
+      }
+    }
+    return result;
+  }
 
+  function addTuukaFromJson(tgt, raceHistory) {
+    if (raceHistory.length === 0) return;
+    const firstRace = raceHistory[0];
+    const tuukaVal = firstRace.passing_order || "";
+    const color = firstRace.last_3f_rank != null ? `rank_${firstRace.last_3f_rank}` : null;
     const colorMap = {
       rank_1: classR1ml,
       rank_2: classR2ml,
       rank_3: classR3ml,
     };
-
-    const cssClass = colorMap[color?.trim()];
+    const cssClass = colorMap[color];
     if (cssClass) {
       tgt.text(tuukaVal).addClass(cssClass);
     } else {
@@ -452,22 +883,65 @@
     }
   }
 
-  function tataki(data, raceDate) {
+  function tekisei(horseData, index) {
+    const raceHistory = horseData.race_history || [];
+
+    if (raceHistory.length == 0) {
+      return false;
+    }
+    let seisekiVal = [0, 0, 0, 0];
+
+    const kyoriVal = $("#kyori").val();
+    const corseVal = $("#corse").val();
+
+    const hidariSeisekiVal = getSeisekiValFromJson(raceHistory, "course", corseHidari);
+    //左回り
+    if (corseHidari.includes(corseVal)) {
+      addSeiseki($("#hidariTd" + index), hidariSeisekiVal);
+    } else {
+      //右回り
+      const allSeisekiVal = getSeisekiValFromJson(raceHistory, "course", []);
+      seisekiVal = [
+        allSeisekiVal[0] - hidariSeisekiVal[0],
+        allSeisekiVal[1] - hidariSeisekiVal[1],
+        allSeisekiVal[2] - hidariSeisekiVal[2],
+        allSeisekiVal[3] - hidariSeisekiVal[3],
+      ];
+      addSeiseki($("#migiTd" + index), seisekiVal);
+    }
+    //コース
+    seisekiVal = getSeisekiValFromJson(raceHistory, "course", [corseVal]);
+    addSeiseki($("#corseTd" + index), seisekiVal);
+
+    //距離
+    seisekiVal = getSeisekiValFromJson(raceHistory, "distance", [kyoriVal]);
+    addSeiseki($("#kyoriTd" + index), seisekiVal);
+
+    //両方
+    seisekiVal = getMultiSeisekiValFromJson(
+      raceHistory,
+      "course",
+      "distance",
+      corseVal,
+      kyoriVal
+    );
+    addSeiseki($("#ryouTd" + index), seisekiVal);
+
+    //通過順
+    addTuukaFromJson($("#tuukaTd" + index), raceHistory);
+  }
+
+  function tataki(raceHistory, targetDate) {
     let ren = 1;
-    let prevDate = raceDate;
+    let prevDate = targetDate;
     let lastIndex = 0;
     for (let index = 0; index < 4; index++) {
-      if (index == data.length) {
+      if (index == raceHistory.length) {
         return 0;
       }
-      const tr = data.eq(index);
-      const date = tr
-        .find("td")
-        .eq(hidukeIndex)
-        .text()
-        .trim()
-        .slice(-10)
-        .split("/");
+      const race = raceHistory[index];
+      const dateStr = race.race_date || "";
+      const date = dateStr.split("/").map(Number);
 
       if (index == 0) {
         //前走
@@ -498,57 +972,52 @@
     return lastIndex * ren;
   }
 
-  function syoukyu(data) {
+  function syoukyu(raceHistory) {
     //前走が1着
-    if (data.eq(0).find("td").eq(tyakuIndex).text() == "1") {
+    if (raceHistory[0].finish_position === 1) {
       return false;
     }
     //前々走がＯＰ以上
-    if (getRank(data.eq(1).find("td").eq(raceIndex).text()) > 4) {
+    if (getRank(raceHistory[1].race_class || "") > 4) {
       return false;
     }
     //前々走が1着以外
-    if (data.eq(1).find("td").eq(tyakuIndex).text() != "1") {
+    if (raceHistory[1].finish_position !== 1) {
       return false;
     }
     return true;
   }
 
-  function kyori(data) {
-    const kyoriStr = $(".RaceData01").find("span").eq(0).text().slice(1, -1);
-    //前走が同距離ではない
-    if (data.eq(0).find("td").eq(kyoriIndex).text() != kyoriStr) {
+  function kyori(raceHistory, targetDistance) {
+    // 前走が同距離ではない
+    if (raceHistory[0].distance === targetDistance) {
       return false;
     }
-    //二戦以上経験している
-    if (
-      data.find("td:eq(" + kyoriIndex + "):contains(" + kyoriStr + ")").length >
-      1
-    ) {
-      return false;
-    }
-    return true;
+    // 二戦以上経験している（同距離の出走が1回だけ）
+    const sameDistCount = raceHistory.filter((r) => r.distance === targetDistance).length;
+    return sameDistCount === 1;
   }
 
-  function syougai(data) {
+  function syougai(raceHistory, targetCourse) {
     //そもそも障害レースではない
-    if (course != "障") {
+    if (targetCourse !== "障") {
       return false;
     }
-    return data.find("td:eq(" + kyoriIndex + "):contains(障)").length == 1;
+    return raceHistory.filter((r) => (r.course || "").includes("障")).length === 1;
   }
 
-  function dirt(data) {
+  function dirt(raceHistory, targetCourse) {
     //そもそもダートレースではない
-    if (course != "ダ") {
+    if (targetCourse !== "ダ") {
       return false;
     }
-    return data.find("td:eq(" + kyoriIndex + "):contains(ダ)").length == 1;
+    return raceHistory.filter((r) => (r.surface || "").includes("ダ")).length === 1;
   }
 
-  function hatsu(data) {
+  function hatsu(raceHistory, targetCourse) {
+    // 過去に targetCourse で走ったことがないかチェック
     return (
-      data.find("td:eq(" + kyoriIndex + "):contains(" + course + ")").length ==
+      raceHistory.filter((r) => (r.surface || "").includes(targetCourse)).length ===
       0
     );
   }
@@ -632,14 +1101,14 @@
     });
   }
 
-  function analyzeRaceData(data, raceDate) {
+  function analyzeRaceData(raceHistory, raceDate, targetCourse, targetDistance) {
     return {
-      hatsu: hatsu(data),
-      dirt: dirt(data),
-      syougai: syougai(data),
-      syoukyu: data.length > 1 ? syoukyu(data) : false,
-      kyori: kyori(data),
-      tataki: tataki(data, raceDate),
+      hatsu: hatsu(raceHistory, targetCourse),
+      dirt: dirt(raceHistory, targetCourse),
+      syougai: syougai(raceHistory, targetCourse),
+      syoukyu: raceHistory.length > 1 ? syoukyu(raceHistory) : false,
+      kyori: kyori(raceHistory, targetDistance),
+      tataki: tataki(raceHistory, raceDate),
     };
   }
 
@@ -682,24 +1151,52 @@
   }
 
   // AI予想関数
-  function aiPredict() {
-    $("#aiPredict").val("AI予想中...");
+  function aiPredict(forceBacktest = false) {
+    const activeButton = forceBacktest ? $("#aiBacktest") : $("#aiPredict");
+    activeButton.val(forceBacktest ? "過去検証中..." : "AI予想中...");
 
     // レース日付を取得（タイトルから）
     const title = $("title").text();
-    const year = title.substr(title.lastIndexOf("年") - 4, 4);
-    const month = title.slice(
-      title.lastIndexOf("年") + 1,
-      title.lastIndexOf("月"),
+    const raceDateMatch = title.match(
+      /(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日/,
     );
-    const date = title.slice(
-      title.lastIndexOf("月") + 1,
-      title.lastIndexOf("日"),
+    if (!raceDateMatch) {
+      alert("レース日付を取得できませんでした");
+      activeButton.val(forceBacktest ? "過去検証" : "AI予想");
+      return;
+    }
+    const [, year, month, day] = raceDateMatch;
+    const parsedRaceDate = new Date(
+      Date.UTC(Number(year), Number(month) - 1, Number(day)),
     );
-    const raceDate = `${year}/${month}/${date}`;
+    if (
+      parsedRaceDate.getUTCFullYear() !== Number(year) ||
+      parsedRaceDate.getUTCMonth() !== Number(month) - 1 ||
+      parsedRaceDate.getUTCDate() !== Number(day)
+    ) {
+      alert("レース日付を正しく読み取れませんでした");
+      activeButton.val(forceBacktest ? "過去検証" : "AI予想");
+      return;
+    }
+    const raceDate = `${year}/${month.padStart(2, "0")}/${day.padStart(2, "0")}`;
+    console.info("AI予想対象日:", raceDate);
+    const now = new Date();
+    const today = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0"),
+    ].join("/");
+    const isHistoricalRace = forceBacktest || raceDate < today;
+    const raceId = new URL(window.location.href).searchParams.get("race_id");
+    if (isHistoricalRace && !/^\d{12}$/.test(raceId || "")) {
+      alert("過去レースの検証に必要なレースIDを取得できませんでした");
+      activeButton.val(forceBacktest ? "過去検証" : "AI予想");
+      return;
+    }
 
     // 出走馬のhorse_idを取得（リンクから直接取得）
     const horseIds = [];
+    const horseGates = [];
     const horseLinks = [];
 
     $(".HorseName")
@@ -711,6 +1208,13 @@
           const match = href.match(/horse\/([A-Za-z0-9\-]+)/);
           if (match) {
             horseIds.push(match[1]);
+            const gateText = $(this)
+              .closest("tr")
+              .find('td[class*="Waku"]')
+              .first()
+              .text()
+              .trim();
+            horseGates.push(/^[1-8]$/.test(gateText) ? parseInt(gateText, 10) : null);
             horseLinks.push(href);
           }
         }
@@ -718,7 +1222,7 @@
 
     if (horseIds.length === 0) {
       alert("出走馬が見つかりません");
-      $("#aiPredict").val("AI予想");
+      activeButton.val(forceBacktest ? "過去検証" : "AI予想");
       return;
     }
 
@@ -759,7 +1263,7 @@
       !supportedCourses.includes(raceCourse)
     ) {
       alert("レース条件（競馬場・芝/ダート・距離）を取得できませんでした");
-      $("#aiPredict").val("AI予想");
+      activeButton.val(forceBacktest ? "過去検証" : "AI予想");
       return;
     }
 
@@ -775,39 +1279,68 @@
       : raceRank.find(([name]) => raceName.includes(name));
     if (!matchedRaceRank) {
       alert("レースクラスを取得できませんでした");
-      $("#aiPredict").val("AI予想");
+      activeButton.val(forceBacktest ? "過去検証" : "AI予想");
       return;
     }
 
-    // Flask APIにリクエスト
+    // Historical races use a model trained only on races before that date.
     $.ajax({
-      url: "http://127.0.0.1:5000/predict",
+      url: isHistoricalRace
+        ? "http://127.0.0.1:5000/backtest/run"
+        : "http://127.0.0.1:5000/predict",
       method: "POST",
       contentType: "application/json",
-      data: JSON.stringify({
-        horse_ids: horseIds,
-        race_date: raceDate,
-        race_distance: raceDistance,
-        race_surface: raceSurface,
-        race_course: raceCourse,
-        race_class: matchedRaceRank[1],
-      }),
+      data: JSON.stringify(
+        isHistoricalRace
+          ? {
+              race_id: raceId,
+              target_race: {
+                race_date: raceDate,
+                course: raceCourse,
+                surface: raceSurface,
+                distance: raceDistance,
+                race_class: matchedRaceRank[1],
+                field_size: horseIds.length,
+                horses: horseIds.map((horseId, index) => ({
+                  horse_id: horseId,
+                  gate: horseGates[index],
+                })),
+              },
+            }
+          : {
+              horse_ids: horseIds,
+              race_date: raceDate,
+              race_distance: raceDistance,
+              race_surface: raceSurface,
+              race_course: raceCourse,
+              race_class: matchedRaceRank[1],
+              race_id: raceId,
+              horse_gates: horseGates,
+              field_size: horseIds.length,
+            },
+      ),
       success: function (response) {
         // 確率を出馬表に表示
-        displayPredictions(response.predictions, horseLinks);
-        $("#aiPredict").val("AI予想");
+        displayPredictions(
+          response.predictions,
+          horseLinks,
+          response.prediction_mode === "backtest" || isHistoricalRace
+            ? "backtest"
+            : "live",
+        );
+        activeButton.val(forceBacktest ? "過去検証" : "AI予想");
       },
       error: function (xhr, status, error) {
         console.error("AI予想エラー:", error);
         alert("AI予想エラー: " + (xhr.responseJSON?.error || error));
-        $("#aiPredict").val("AI予想");
+        activeButton.val(forceBacktest ? "過去検証" : "AI予想");
       },
     });
   }
 
   let sortOrder = "desc"; // 'desc' = 降順, 'asc' = 昇順
 
-  function displayPredictions(predictions, horseLinks) {
+  function displayPredictions(predictions, horseLinks, predictionMode = "live") {
     // ヘッダーに「俺指数」カラムを追加
     const table = $(".ShutubaTable");
     if (table.length > 0) {
@@ -817,7 +1350,7 @@
         <th class="my-index-header" style="cursor: pointer;">
           <div class="tablesorter-header-inner">
             <div class="Inner_Shutuba">
-              <span class="HorseName">俺指数</span>
+              <span class="HorseName">${predictionMode === "backtest" ? "俺指数（過去検証）" : "俺指数"}</span>
               <span class="sort_icon" style="display: block;">
                 <i class="fas fa-sort"></i>
               </span>
@@ -836,7 +1369,7 @@
     // horse_idから予測値へのマップを作成
     const predictionMap = {};
     predictions.forEach(function (pred) {
-      predictionMap[pred.horse_id] = pred.probability;
+      predictionMap[pred.horse_id] = pred;
     });
 
     // 各馬の確率を表示
@@ -846,9 +1379,14 @@
         .replace("https://db.netkeiba.com/horse/", "")
         .replace("/", "");
 
-      const probability = predictionMap[horseId];
-      if (probability !== undefined) {
-        const percent = (probability * 100).toFixed(1) + "%";
+      const prediction = predictionMap[horseId];
+      if (prediction !== undefined) {
+        const hasError = Boolean(prediction.error);
+        const isExcluded = Boolean(prediction.excluded);
+        const probability = prediction.probability;
+        const displayValue = isExcluded || hasError
+          ? "予測エラー"
+          : `${(probability * 100).toFixed(1)}%`;
 
         // 該当する馬の行を探す
         $(".HorseName")
@@ -860,7 +1398,7 @@
               // featuresを取得
               // 指数セルを追加
               row.append(
-                `<td class="my-index-cell" data-value="${probability}" style="text-align: center; font-weight: bold; color: red; cursor: pointer;">${percent}</td>`,
+                `<td class="my-index-cell" data-value="${hasError || isExcluded ? 0 : probability}" style="text-align: center; font-weight: bold; color: ${hasError || isExcluded ? "#777" : "red"}; cursor: pointer;"${hasError || isExcluded ? ' title="クリックして理由を確認"' : ""}>${displayValue}</td>`,
               );
             }
           });
@@ -875,10 +1413,18 @@
       const href = horseLink.attr('href');
       const horseId = href.replace('https://db.netkeiba.com/horse/', '').replace('/', '');
 
-      const features = predictions.find(p => p.horse_id === horseId)?.features;
+      const prediction = predictions.find(p => p.horse_id === horseId);
+      const features = prediction?.features;
+
+      if (prediction?.excluded) {
+        alert(`【${horseId}】\n${prediction.error || "予測対象外です。"}`);
+        return;
+      }
 
       let featureText = `【${horseId} の特徴量】\n確率: ${(probability * 100).toFixed(1)}%\n\n`;
-      if (features) {
+      if (prediction?.error) {
+        featureText = `【${horseId} の予測エラー】\n${prediction.error}`;
+      } else if (features) {
         for (const [key, value] of Object.entries(features)) {
           featureText += `${key}: ${value}\n`;
         }
@@ -922,21 +1468,21 @@
     });
   }
 
-  function doKaiseki(html, a, firstBlinkers) {
-    const data = parseRaceData(html);
+  function doKaiseki(horseData, a, firstBlinkers, targetCourse, targetDistance) {
+    const raceHistory = horseData.race_history || [];
     const raceDate = getRaceDate();
 
     a.find("td").remove();
     a.find("img").remove();
 
-    if (data.length == 0) {
+    if (raceHistory.length == 0) {
       addMark(a, txtHatsu, colHatsu);
-      banushi(html, a);
+      banushi(null, a);
       return false;
     }
 
-    const flags = analyzeRaceData(data, raceDate);
+    const flags = analyzeRaceData(raceHistory, raceDate, targetCourse, targetDistance);
     addMarks(a, flags, firstBlinkers);
-    banushi(html, a);
+    banushi(null, a);
   }
 })(jQuery);

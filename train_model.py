@@ -13,7 +13,16 @@ def prepare_features_for_training(all_features):
         前処理済みの特徴量（numpy array）と特徴量名のリスト
     """
     # 不要なカラムを削除
-    cols_to_drop = ['horse_id', 'last_jockey']
+    cols_to_drop = [
+        'horse_id',
+        'last_jockey',
+        'last_popularity',  # 人気系（削除）
+        'avg_popularity',   # 人気系（削除）
+        'promotion_2nd_prev_result_ignored',
+        'promotion_2nd_prev_actual_finish',
+        'promotion_2nd_prev_actual_margin',
+        'promotion_2nd_prev_actual_last_3f_rank',
+    ]
     
     # 特徴量名を取得（最初のサンプルから）
     if not all_features:
@@ -238,10 +247,10 @@ def main():
     
     print(f"Feature count: {len(feature_names)}")
     
-    # データ分割（時系列ではなくランダム分割）
-    X_train, X_test, y_train, y_test = train_test_split_manual(
-        X, y, test_size=0.2, random_state=42
-    )
+    # データ分割（時系列分割：最新の20%をテストデータにする）
+    split_idx = int(len(X) * 0.8)
+    X_train, X_test = X[:split_idx], X[split_idx:]
+    y_train, y_test = y[:split_idx], y[split_idx:]
     
     print(f"Training samples: {len(X_train)}")
     print(f"Test samples: {len(X_test)}")

@@ -61,7 +61,7 @@ def get_race_group(race_id):
     """特定のrace_idの出走馬を取得"""
     conn = get_connection()
     query = '''
-        SELECT horse_id, race_date, finish_position, race_class
+        SELECT horse_id, race_date, finish_position, race_class, gate, field_size
         FROM horse_data_dtl
         WHERE race_id = ?
     '''
@@ -107,16 +107,16 @@ def prepare_training_data_by_condition(course, distance, surface, years_limit=10
     if not race_ids:
         print(f"  No races found for {course} {surface} {distance}m")
         return {
-            'condition': {'features': [], 'targets': []},
-            'other': {'features': [], 'targets': []},
+            'condition': {'features': [], 'targets': [], 'race_ids': [], 'race_dates': []},
+            'other': {'features': [], 'targets': [], 'race_ids': [], 'race_dates': []},
         }
 
     # 直近N年以内のレースIDを取得
     cutoff_date = datetime.now() - timedelta(days=years_limit * 365)
 
     training_data = {
-        'condition': {'features': [], 'targets': []},
-        'other': {'features': [], 'targets': []},
+        'condition': {'features': [], 'targets': [], 'race_ids': [], 'race_dates': []},
+        'other': {'features': [], 'targets': [], 'race_ids': [], 'race_dates': []},
     }
 
     print(f"  Processing {len(race_ids)} races...")
@@ -135,6 +135,8 @@ def prepare_training_data_by_condition(course, distance, surface, years_limit=10
             # レース日付を取得
             race_date = race_group[0]['race_date']
             parsed_race_date = parse_date(race_date)
+            if parsed_race_date is None:
+                continue
             race_class_value = race_group[0].get('race_class')
             if race_class_value is None:
                 continue
@@ -161,7 +163,10 @@ def prepare_training_data_by_condition(course, distance, surface, years_limit=10
                     horse_id, race_history, parsed_race_date,
                     target_race_distance=distance,
                     target_race_surface=surface,
-                    target_race_course=course
+                    target_race_course=course,
+                    target_race_class=race_class,
+                    target_gate=row.get('gate'),
+                    target_field_size=row.get('field_size') or len(race_group),
                 )
 
                 if features:
@@ -170,6 +175,10 @@ def prepare_training_data_by_condition(course, distance, surface, years_limit=10
 
                     training_data[model_group]['features'].append(features)
                     training_data[model_group]['targets'].append(target)
+                    training_data[model_group]['race_ids'].append(str(race_id))
+                    training_data[model_group]['race_dates'].append(
+                        parsed_race_date.strftime('%Y/%m/%d')
+                    )
 
         except Exception as e:
             print(f"  Warning: race_id={race_id} error: {e}")
@@ -183,11 +192,11 @@ def prepare_training_data_by_condition(course, distance, surface, years_limit=10
         )
     return training_data
 
-def save_training_data_by_condition(features, targets, course, distance, surface, model_group):
+def save_training_data_by_condition(data, course, distance, surface, model_group):
     """学習データを保存"""
     filename = f"training_data_{course}_{surface}_{distance}m_{model_group}.pkl"
     with open(filename, 'wb') as f:
-        pickle.dump({'features': features, 'targets': targets}, f)
+        pickle.dump(data, f)
     print(f"  Saved: {filename}")
 
 if __name__ == '__main__':
@@ -214,8 +223,7 @@ if __name__ == '__main__':
 
         for model_group, data in training_data.items():
             save_training_data_by_condition(
-                data['features'],
-                data['targets'],
+                data,
                 course,
                 distance,
                 surface,

@@ -53,6 +53,7 @@ def get_all_race_ids(min_horses=3):
     query = f'''
         SELECT race_id, COUNT(*) as horse_count
         FROM horse_data_dtl
+        WHERE course IN ('東京', '中京', '新潟', '中山', '福島', '函館', '札幌', '阪神', '京都', '小倉')
         GROUP BY race_id
         HAVING horse_count >= {min_horses}
         ORDER BY race_id
