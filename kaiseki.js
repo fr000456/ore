@@ -875,19 +875,21 @@
     return result;
   }
 
-  function getMultiSeisekiValFromJson(raceHistory, field1, field2, val1, val2) {
-    const result = [0, 0, 0, 0];
-    for (const race of raceHistory) {
-      if (race[field1] == val1 && race[field2] == val2) {
-        const finish = race.finish_position;
-        if (finish != null && finish <= 4) {
-          result[finish - 1]++;
-        } else if (finish != null) {
-          result[3]++;
-        }
-      }
-    }
-    return result;
+  // 距離絞り込み値（例: "芝1200", "ダ1700", "1400m", "1200"）を距離と馬場に分解
+  function parseKyoriFilter(kyoriVal) {
+    const s = String(kyoriVal || "").trim();
+    const distance = parseInt(s.replace(/[^0-9]/g, ""), 10);
+    let surface = null;
+    if (s.includes("芝")) surface = "芝";
+    else if (s.includes("ダ")) surface = "ダート";
+    return { distance: Number.isNaN(distance) ? null : distance, surface };
+  }
+
+  function matchKyoriFilter(race, filter) {
+    if (filter.distance == null) return true;
+    if (race.distance != filter.distance) return false;
+    if (filter.surface && race.surface !== filter.surface) return false;
+    return true;
   }
 
   function addTuukaFromJson(tgt, raceHistory) {
@@ -937,17 +939,16 @@
     addSeiseki($("#corseTd" + index), seisekiVal);
 
     //距離
-    seisekiVal = getSeisekiValFromJson(raceHistory, "distance", [kyoriVal]);
+    const kyoriFilter = parseKyoriFilter(kyoriVal);
+    const kyoriRaces = raceHistory.filter((r) => matchKyoriFilter(r, kyoriFilter));
+    seisekiVal = getSeisekiValFromJson(kyoriRaces, "distance", []);
     addSeiseki($("#kyoriTd" + index), seisekiVal);
 
     //両方
-    seisekiVal = getMultiSeisekiValFromJson(
-      raceHistory,
-      "course",
-      "distance",
-      corseVal,
-      kyoriVal
+    const ryouRaces = raceHistory.filter(
+      (r) => r.course == corseVal && matchKyoriFilter(r, kyoriFilter)
     );
+    seisekiVal = getSeisekiValFromJson(ryouRaces, "distance", []);
     addSeiseki($("#ryouTd" + index), seisekiVal);
 
     //通過順
@@ -1025,7 +1026,12 @@
     }
     // 二戦以上経験している（同距離・同馬場の出走が1回だけ）
     const sameDistSurfaceCount = raceHistory.filter((r) => r.distance === targetDistance && r.surface === targetSurface).length;
-    return sameDistSurfaceCount === 1;
+    if (sameDistSurfaceCount !== 1) {
+      return false;
+    }
+    // 二走前以前に同馬場でその距離以下の出走がない
+    const pastDistances = raceHistory.slice(1).filter((r) => r.surface === targetSurface).map((r) => r.distance).filter((d) => d != null);
+    return !pastDistances.some((d) => d <= targetDistance);
   }
 
   function syougai(raceHistory, targetCourse) {
