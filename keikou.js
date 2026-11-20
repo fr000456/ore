@@ -13,7 +13,7 @@
 // @require https://code.jquery.com/jquery-3.6.0.min.js
 // @require https://cdnjs.cloudflare.com/ajax/libs/jquery.tablesorter/2.31.3/js/jquery.tablesorter.min.js
 // @require https://raw.githubusercontent.com/fr000456/ore/main/common.js?v=3
-// @require https://raw.githubusercontent.com/fr000456/ore/main/const.js
+// @require https://raw.githubusercontent.com/fr000456/ore/main/const.js?v=1
 // ==/UserScript==
 
 (function ($) {

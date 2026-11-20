@@ -14,15 +14,12 @@
 // @connect     127.0.0.1
 // @connect     db.netkeiba.com
 // @require https://code.jquery.com/jquery-3.6.0.min.js
-// @require https://raw.githubusercontent.com/fr000456/ore/main/const.js
+// @require https://raw.githubusercontent.com/fr000456/ore/main/const.js?v=1
 // @require https://raw.githubusercontent.com/fr000456/ore/main/common.js?v=3
-// @require https://raw.githubusercontent.com/fr000456/ore/main/html.js
+// @require https://raw.githubusercontent.com/fr000456/ore/main/html.js?v=1
 // ==/UserScript==
 
 (function ($) {
-  // const.jsの定数・配列は使用時にwindow経由で参照（読み込み順序問題回避）
-  // common.jsの関数も使用時にwindow経由で参照
-
   // -----------------------------------------------------------------------
   // 出馬表から非表示iframeとして読み込まれた馬詳細ページの処理
   // -----------------------------------------------------------------------
@@ -56,7 +53,7 @@
     if (gradeTypeMatch) {
       return String({ 1: 9, 2: 8, 3: 7 }[gradeTypeMatch[1]]);
     }
-    const matchedRaceRank = window.raceRank.find(([name]) => text.includes(name));
+    const matchedRaceRank = raceRank.find(([name]) => text.includes(name));
     return matchedRaceRank ? String(matchedRaceRank[1]) : null;
   }
 
@@ -410,8 +407,8 @@
       else if (rtext.includes("ダ")) targetSurface = "ダート";
     }
 
-    // JSONを受け取る関数（解析・適性・馬場）とHTMLを受け取る関数（ローテ・内回り・備考・血統）に分岐
-    const jsonFuncs = [funcKaiseki, funcTekisei, funcBaba];
+    // JSONを受け取る関数（解析・適性）とHTMLを受け取る関数（その他）に分岐
+    const jsonFuncs = [funcKaiseki, funcTekisei];
     const isJsonFunc = jsonFuncs.includes(aFunc);
 
     let horses = {};
@@ -443,7 +440,7 @@
       const { horse, index } = horseMap[horseId];
 
       if (isJsonFunc) {
-        // 解析・適性・馬場・ローテ・内回り：JSONデータを渡す
+        // 解析・適性：JSONデータを渡す
         const horseData = horses[horseId] || {
           horse_id: horseId,
           horse_name: null,
@@ -458,7 +455,7 @@
         // 馬場・ローテ・内回り・備考・血統など：従来通りHTMLを渡す
         const p = getHtmlFromMap(horseId).then((html) => {
           if (!html) return;
-          window.setIndex(html);
+          setIndex(html);
           return aFunc(html, horse, index, firstBlinkers);
         });
         promises.push(p);
@@ -497,9 +494,8 @@
     return Promise.resolve();
   };
 
-  const funcBaba = function (horseData, a, index) {
-    tekisei(horseData, index);
-    return Promise.resolve();
+  const funcBaba = function (html, a, index) {
+    babakaiseki(html, a, index);
   };
 
   const funcRota = function (html, a, index) {
@@ -717,25 +713,16 @@
   function setConst() {
     //コース
     if ($(".RaceData01").find('span:contains("障")').length > 0) {
-      window.course = "障";
+      course = "障";
     } else if ($(".RaceData01").find('span:contains("芝")').length > 0) {
-      window.course = "芝";
+      course = "芝";
     } else if ($(".RaceData01").find('span:contains("ダ")').length > 0) {
-      window.course = "ダ";
+      course = "ダ";
     }
   }
 
   function parseRaceData(html) {
     return $("<div>").html(html).find("#data").find("tbody").find("tr");
-  }
-
-  function addTatakiHtml(a, tatakiFlg) {
-    const tatakiHidden = $("<input></input>", {
-      type: "hidden",
-      id: "tataki",
-      value: tatakiFlg,
-    });
-    a.append(tatakiHidden);
   }
 
   function rotation(html, a, index) {
@@ -760,23 +747,24 @@
         .split("/");
 
       if (pDate != null) {
-        if (window.kankaku(date, pDate) > 90) {
+        if (kankaku(date, pDate) > 90) {
+          //リセット
           count = 0;
-          yasumi = window.getTyakujun(yasumi, tr);
-        } else if (window.kankaku(date, pDate) > 53) {
+          yasumi = getTyakujun(yasumi, tr);
+        } else if (kankaku(date, pDate) > 53) {
           count = 0;
-          futu = window.getTyakujun(futu, tr);
+          futu = getTyakujun(futu, tr);
         }
       } else {
-        yasumi = window.getTyakujun(yasumi, tr);
+        yasumi = getTyakujun(yasumi, tr);
       }
 
       if (count == 1) {
-        ni = window.getTyakujun(ni, tr);
+        ni = getTyakujun(ni, tr);
       } else if (count == 2) {
-        san = window.getTyakujun(san, tr);
+        san = getTyakujun(san, tr);
       } else if (count > 2) {
-        tukai = window.getTyakujun(tukai, tr);
+        tukai = getTyakujun(tukai, tr);
       }
 
       count++;
@@ -785,21 +773,65 @@
 
     switch (a.find("#tataki").val()) {
       case "0":
-        window.addSeiseki($("#rotaTd" + index), futu);
+        addSeiseki($("#rotaTd" + index), futu);
         break;
       case "1":
-        window.addSeiseki($("#rotaTd" + index), yasumi);
+        addSeiseki($("#rotaTd" + index), yasumi);
         break;
       case "2":
-        window.addSeiseki($("#rotaTd" + index), ni);
+        addSeiseki($("#rotaTd" + index), ni);
         break;
       case "3":
-        window.addSeiseki($("#rotaTd" + index), san);
+        addSeiseki($("#rotaTd" + index), san);
         break;
       case "4":
-        window.addSeiseki($("#rotaTd" + index), tukai);
+        addSeiseki($("#rotaTd" + index), tukai);
         break;
     }
+  }
+
+  function addTatakiHtml(a, tatakiFlg) {
+    const tatakiHidden = $("<input></input>", {
+      type: "hidden",
+      id: "tataki",
+      value: tatakiFlg,
+    });
+    a.append(tatakiHidden);
+  }
+
+  function babakaiseki(html, a, index) {
+    const data = parseRaceData(html);
+
+    let seisekiVal = [0, 0, 0, 0];
+    const babaVal = ["", "", "", ""];
+
+    const babaMap = [
+      { id: "#ryou", val: "良", index: 0 },
+      { id: "#yaya", val: "稍", index: 1 },
+      { id: "#omo", val: "重", index: 2 },
+      { id: "#fu", val: "不", index: 3 },
+    ];
+
+    babaMap.forEach(({ id, val, index: idx }) => {
+      if ($(id).prop("checked")) {
+        babaVal[idx] = val;
+      }
+    });
+
+    // 距離欄に馬場指定があれば馬場成績もそれに合わせる（getTyakujunはグローバルcourseを見る）
+    const kyoriSurface = parseKyoriFilter($("#kyori").val()).surface;
+    const prevCourse = course;
+    if (kyoriSurface === "芝") course = "芝";
+    else if (kyoriSurface === "ダート") course = "ダ";
+    else if (kyoriSurface === "障害") course = "障";
+
+    try {
+      seisekiVal = getSeisekiVal(data, babaIndex, babaVal);
+    } finally {
+      course = prevCourse;
+    }
+
+    addSeiseki($("#babaTd" + index), seisekiVal);
   }
 
   function uchimawari(html, index) {
@@ -811,18 +843,18 @@
 
     let seisekiVal = [0, 0, 0, 0];
 
-    for (let i = 0; i < window.corseUchi.length; i++) {
+    for (let i = 0; i < corseUchi.length; i++) {
       const tgtTr = data
-        .find("td:eq(" + corseIndex + "):contains(" + window.corseUchi[i][0] + ")")
+        .find("td:eq(" + corseIndex + "):contains(" + corseUchi[i][0] + ")")
         .parent()
-        .find("td:eq(" + kyoriIndex + "):contains(" + window.corseUchi[i][1] + ")")
+        .find("td:eq(" + kyoriIndex + "):contains(" + corseUchi[i][1] + ")")
         .parent();
       for (let j = 0; j < tgtTr.length; j++) {
         seisekiVal = getTyakujun(seisekiVal, tgtTr.eq(j));
       }
     }
 
-    addSeiseki($("#uchiTd" + index), seisekiVal);
+    addSeiseki($("#corseTd" + index), seisekiVal);
   }
 
   function bikou(html, index) {
@@ -920,50 +952,37 @@
       (r) => !displaySurface || normSurface(r.surface) === displaySurface
     );
 
-    const hidariSeisekiVal = getSeisekiValFromJson(displayRaces, "course", window.corseHidari);
+    const hidariSeisekiVal = getSeisekiValFromJson(displayRaces, "course", corseHidari);
     //左回り
-    if (window.corseHidari.includes(corseVal)) {
-      window.addSeiseki($("#hidariTd" + index), hidariSeisekiVal);
+    if (corseHidari.includes(corseVal)) {
+      addSeiseki($("#hidariTd" + index), hidariSeisekiVal);
     } else {
       //右回り（左回りレースを除外）
       const migiRaces = displayRaces.filter(
-        (r) => !window.corseHidari.includes(r.course || "")
+        (r) => !corseHidari.includes(r.course || "")
       );
       const migiSeisekiVal = getSeisekiValFromJson(migiRaces, "course", []);
-      window.addSeiseki($("#migiTd" + index), migiSeisekiVal);
+      addSeiseki($("#migiTd" + index), migiSeisekiVal);
     }
     //コース
     const corseRaces = displayRaces.filter((r) => r.course == corseVal);
     seisekiVal = getSeisekiValFromJson(corseRaces, "course", []);
-    window.addSeiseki($("#corseTd" + index), seisekiVal);
+    addSeiseki($("#corseTd" + index), seisekiVal);
 
     //距離
     const kyoriRaces = displayRaces.filter((r) => matchKyoriFilter(r, kyoriFilter));
     seisekiVal = getSeisekiValFromJson(kyoriRaces, "distance", []);
-    window.addSeiseki($("#kyoriTd" + index), seisekiVal);
+    addSeiseki($("#kyoriTd" + index), seisekiVal);
 
     //両方
     const ryouRaces = displayRaces.filter(
       (r) => r.course == corseVal && matchKyoriFilter(r, kyoriFilter)
     );
     seisekiVal = getSeisekiValFromJson(ryouRaces, "distance", []);
-    window.addSeiseki($("#ryouTd" + index), seisekiVal);
+    addSeiseki($("#ryouTd" + index), seisekiVal);
 
     //通過順
     addTuukaFromJson($("#tuukaTd" + index), raceHistory);
-
-    //馬場（JSON版）
-    const babaRaces = displayRaces.filter((r) => {
-      const tc = r.track_condition || "";
-      const checked = [];
-      if ($("#ryou").prop("checked")) checked.push("良");
-      if ($("#yaya").prop("checked")) checked.push("稍");
-      if ($("#omo").prop("checked")) checked.push("重");
-      if ($("#fu").prop("checked")) checked.push("不");
-      return checked.length === 0 || checked.includes(tc);
-    });
-    const babaSeisekiVal = getSeisekiValFromJson(babaRaces, "finish_position", []);
-    window.addSeiseki($("#babaTd" + index), babaSeisekiVal);
   }
 
   function tataki(raceHistory, targetDate) {
@@ -1324,7 +1343,7 @@
       : null;
     const matchedRaceRank = gradeTypeRank !== null
       ? [null, gradeTypeRank]
-      : window.raceRank.find(([name]) => raceName.includes(name));
+      : raceRank.find(([name]) => raceName.includes(name));
     if (!matchedRaceRank) {
       alert("レースクラスを取得できませんでした");
       activeButton.val(forceBacktest ? "過去検証" : "AI予想");
