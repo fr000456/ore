@@ -1516,27 +1516,32 @@ def predict():
                 # 予測
                 try:
                     probability = model_instance.predict(X, num_iteration=model_instance.best_iteration)[0]
-                    if model_group == 'condition' and features.get('is_promotion_2nd') == 1:
-                        context_artifact = load_promotion_second_context_model()
-                        context_values = np.asarray([
-                            [
-                                np.nan if value is None else float(value)
-                                for value in get_promotion_second_context_values(features)
-                            ]
-                        ])
-                        context_probability = context_artifact['model'].predict_proba(
-                            context_values
-                        )[0, 1]
+                    if model_group == 'condition':
+                        context_probability = None
+                        context_base_rate = None
+                        if features.get('is_promotion_2nd') == 1:
+                            try:
+                                context_artifact = load_promotion_second_context_model()
+                                context_values = np.asarray([
+                                    [
+                                        np.nan if value is None else float(value)
+                                        for value in get_promotion_second_context_values(features)
+                                    ]
+                                ])
+                                context_probability = context_artifact['model'].predict_proba(
+                                    context_values
+                                )[0, 1]
+                                context_base_rate = context_artifact['base_rate']
+                            except Exception as context_error:
+                                app.logger.warning(
+                                    'Promotion-second context model unavailable: %s',
+                                    context_error,
+                                )
                         probability = apply_promotion_second_boost(
                             probability,
                             features.get('is_promotion_2nd'),
                             context_probability=context_probability,
-                            context_base_rate=context_artifact['base_rate'],
-                        )
-                    elif model_group == 'condition':
-                        probability = apply_promotion_second_boost(
-                            probability,
-                            features.get('is_promotion_2nd'),
+                            context_base_rate=context_base_rate,
                         )
 
                     # 近走の成績と得意コース・距離のバランスを調整

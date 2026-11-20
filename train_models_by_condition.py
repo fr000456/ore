@@ -5,11 +5,6 @@ import re
 from datetime import datetime
 import lightgbm as lgb
 import numpy as np
-from sklearn.impute import SimpleImputer
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
 from feature_engineering import (
     NULL_AS_NAN_FEATURES,
     PROMOTION_SECOND_CONTEXT_FEATURES,
@@ -195,6 +190,13 @@ def split_indices_by_race_date(
 
 def train_promotion_second_context_model(training_files=None):
     """Train a pooled, time-split model for promotion-second context."""
+    # sklearnは予測時ではなくこの学習処理でのみ必要なため遅延importする
+    from sklearn.impute import SimpleImputer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+
     if training_files is None:
         training_files = sorted(glob.glob('training_data_*_condition.pkl'))
 
@@ -322,6 +324,9 @@ def train_promotion_second_context_model(training_files=None):
 
 def train_model_by_condition(course, distance, surface, model_group):
     """特定のレース条件のモデルを学習"""
+    # sklearnは予測時ではなくこの学習処理でのみ必要なため遅延importする
+    from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
+
     filename = f"training_data_{course}_{surface}_{distance}m_{model_group}.pkl"
 
     if not os.path.exists(filename):
