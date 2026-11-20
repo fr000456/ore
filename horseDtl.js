@@ -113,6 +113,7 @@ function kaiseki() {
   $($(".db_h_race_results").find("a").get().reverse()).each(function () {
     var horseUrl = $(this).attr("href");
     if (
+      !horseUrl ||
       horseUrl.indexOf("/race/") == -1 ||
       horseUrl.indexOf("/sum/") != -1 ||
       horseUrl.indexOf("/movie/") != -1

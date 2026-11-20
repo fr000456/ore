@@ -42,9 +42,6 @@ async function ajax(linkUrl) {
     $.ajax({
       url: linkUrl,
       dataType: "html",
-      beforeSend: (xhr) => {
-        xhr.overrideMimeType("text/html;charset=euc-jp");
-      },
       success: (html) => {
         const horseData = getHorseData(html);
         const htmlString = horseData[0].outerHTML;
@@ -528,7 +525,7 @@ function banushi(html, a) {
 
 function openDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("MyCacheDB", 1);
+    const request = indexedDB.open("MyCacheDB_v2", 1);
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains("cache")) {

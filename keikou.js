@@ -170,7 +170,7 @@
     }
 
     // サイズ確認
-    estimateIndexedDBSize("MyCacheDB", "cache").then((size) => {
+    estimateIndexedDBSize("MyCacheDB_v2", "cache").then((size) => {
       console.log("IndexedDB size (bytes):", size);
     });
   }
