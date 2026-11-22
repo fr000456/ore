@@ -154,50 +154,23 @@ async function getHtmlFromMap(horseId) {
 // 非同期で「その後」の成績を集計してテーブルに反映する関数
 var totalArray = new Array();
 async function changeSonogoFunc(a, index) {
-  const raceResulthtml = await ajax(a.attr("href"));
+  const href = a.attr("href") || "";
+  const raceId = (href.match(/\/race\/(\d{12})\//) || href.match(/race_id=(\d{12})/) || [])[1];
 
-  // 開催日を yyyy/mm/dd 形式に変換
-  const dateStr = $(raceResulthtml)
-    .find(".data_intro p.smalltxt")
-    .text()
-    .substr(0, 10);
-  const sonogoRaceDate = dateStr
-    .replace("年", "/")
-    .replace("月", "/")
-    .replace("日", "");
-
-  totalArray[index] = [0, 0, 0, 0];
-  const promises = [];
-
-  // レース結果表から馬リンクを全部取得
-  const links = $(raceResulthtml)
-    .find('#raceResult a[href*="/horse/"]')
-    .toArray();
-
-  for (const el of links) {
-    const href = el.getAttribute("href");
-    const match = href.match(/horse\/([A-Za-z0-9\-]+)/);
-    if (!match) {
-      console.warn("馬IDが取れませんでした:", href);
-      continue;
+  let counts = [0, 0, 0, 0];
+  if (raceId) {
+    try {
+      const res = await fetch(`http://localhost:5000/sonogo/${raceId}`);
+      if (res.ok) {
+        counts = await res.json();
+      }
+    } catch (e) {
+      console.error("sonogo fetch error:", e);
     }
-
-    const horseId = match[1].trim();
-
-    // HTML取得（await使える）
-    const html = await getHtmlFromMap(horseId);
-    setIndex(html);
-
-    // 集計用Promiseをpush
-    const p = addTotalVal(html, sonogoRaceDate, totalArray[index]);
-    promises.push(p);
   }
 
-  // 全部終わるのを待つ
-  await Promise.all(promises);
-
   // 結果をテーブルに反映
-  const result = $("<td>", { text: getSeisekiTxt(totalArray[index]) });
+  const result = $("<td>", { text: getSeisekiTxt(counts) });
   $(".db_h_race_results tbody tr")
     .eq(index)
     .find("td")

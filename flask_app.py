@@ -772,6 +772,58 @@ def get_html(horse_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+JRA_COURSE_NAMES = [
+    '東京', '中京', '新潟', '中山', '福島',
+    '函館', '札幌', '阪神', '京都', '小倉',
+]
+
+
+@app.route('/sonogo/<race_id>', methods=['GET'])
+def sonogo_stats(race_id):
+    """指定レースの出走馬全頭の「その後」成績 [1着,2着,3着,4着以下] を返す"""
+    try:
+        race_id_int = int(race_id)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'invalid race_id'}), 400
+
+    conn = get_analysis_connection()
+    try:
+        rows = conn.execute(
+            'SELECT race_date, horse_id FROM horse_data_dtl WHERE race_id = ?',
+            (race_id_int,),
+        ).fetchall()
+        if not rows:
+            return jsonify([0, 0, 0, 0])
+
+        race_date = rows[0][0]
+        horse_ids = {r[1] for r in rows}
+
+        jra_cond = ' OR '.join(['course LIKE ?'] * len(JRA_COURSE_NAMES))
+        jra_params = [f'%{name}%' for name in JRA_COURSE_NAMES]
+
+        counts = [0, 0, 0, 0]
+        for horse_id in horse_ids:
+            cursor = conn.execute(
+                f'''
+                SELECT finish_position FROM horse_data_dtl
+                WHERE horse_id = ? AND race_date > ?
+                  AND finish_position IS NOT NULL
+                  AND ({jra_cond})
+                ''',
+                [horse_id, race_date] + jra_params,
+            )
+            for (position,) in cursor:
+                if position is None or position < 1:
+                    continue
+                counts[min(position, 4) - 1] += 1
+
+        return jsonify(counts)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
 # モデルをグローバルにキャッシュ
 model = None
 feature_columns = None

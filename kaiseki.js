@@ -15,7 +15,7 @@
 // @connect     db.netkeiba.com
 // @require https://code.jquery.com/jquery-3.6.0.min.js
 // @require https://raw.githubusercontent.com/fr000456/ore/main/const.js?v=1
-// @require https://raw.githubusercontent.com/fr000456/ore/main/common.js?v=4
+// @require https://raw.githubusercontent.com/fr000456/ore/main/common.js?v=5
 // @require https://raw.githubusercontent.com/fr000456/ore/main/html.js?v=1
 // ==/UserScript==
 
