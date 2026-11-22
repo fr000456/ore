@@ -118,34 +118,54 @@
 
       // レース解析をPromise化してpush
       const p = (async () => {
-        const raceResulthtml = await ajax(raceUrl);
-
-        if (cancel) {
-          func(raceResulthtml);
+        // race_idをURLから抽出
+        const raceId = (
+          raceUrl.match(/\/race\/(\d{12})/) ||
+          raceUrl.match(/race_id=(\d{12})/) ||
+          []
+        )[1];
+        if (!raceId) {
           return;
         }
 
-        // 馬リンクを取得して並列処理
-        const horseLinks = $(raceResulthtml)
-          .find('#raceResult tr')
-          .not(':first')
-          .map(function() {
-            return $(this).find('td').eq(3).find('a[href*="/horse/"]')[0];
-          })
-          .get();
-        const horsePromises = horseLinks.map(async (el, index) => {
-          const href = el.getAttribute("href");
-          const match = href.match(/horse\/([A-Za-z0-9\-]+)/);
-          if (!match) {
-            console.warn("馬IDが取れませんでした:", href);
+        // DBから出走馬一覧を取得（結果テーブル順）
+        let entries;
+        try {
+          const res = await fetch(`http://localhost:5000/race_entries/${raceId}`);
+          if (!res.ok) {
             return;
           }
-          const horseId = match[1].trim();
-          const html = await getHtmlFromMap(horseId);
-          setIndex(html);
-          return func(html, raceUrl, index);
-        });
+          entries = await res.json();
+        } catch (e) {
+          console.error("race_entries fetch error:", raceUrl, e);
+          return;
+        }
+        if (!Array.isArray(entries) || entries.length === 0) {
+          return;
+        }
 
+        if (cancel) {
+          func(entries);
+          return;
+        }
+
+        // 馬IDを持つ出走馬を着順順に並列処理
+        const horsePromises = [];
+        let index = 0;
+        for (const entry of entries) {
+          const horseId = entry.horse_id;
+          if (!horseId) {
+            continue;
+          }
+          const i = index++;
+          horsePromises.push(
+            (async () => {
+              const html = await getHtmlFromMap(horseId);
+              setIndex(html);
+              func(html, raceId, i);
+            })(),
+          );
+        }
         await Promise.all(horsePromises);
         console.log("全馬解析完了:", raceUrl);
       })();
@@ -261,16 +281,13 @@
     makeResultTbl(sire, index);
   };
 
-  const wakujunFunc = function (raceHtml) {
-    $(raceHtml)
-      .find(".race_table_01")
-      .find("tr")
-      .each(function (index) {
-        if (index == 0) {
-          return true;
-        }
-        makeResultTbl($(this).find("td").eq(2).text(), index - 1);
-      });
+  const wakujunFunc = function (entries) {
+    entries.forEach(function (entry, index) {
+      if (!entry || entry.horse_number == null) {
+        return;
+      }
+      makeResultTbl(String(entry.horse_number), index);
+    });
   };
 
   function makeResultTbl(key, value) {

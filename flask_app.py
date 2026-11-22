@@ -858,6 +858,41 @@ def sonogo_horse_stats(horse_id):
         conn.close()
 
 
+@app.route('/race_entries/<race_id>', methods=['GET'])
+def race_entries(race_id):
+    """指定レースの出走馬一覧を結果テーブル順（着順順、未確定は最後）で返す"""
+    try:
+        race_id_int = int(race_id)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'invalid race_id'}), 400
+
+    conn = get_analysis_connection()
+    try:
+        rows = conn.execute(
+            '''
+            SELECT horse_id, horse_number, gate, finish_position
+            FROM horse_data_dtl
+            WHERE race_id = ?
+            ORDER BY (finish_position IS NULL), finish_position, horse_number
+            ''',
+            (race_id_int,),
+        ).fetchall()
+        entries = [
+            {
+                'horse_id': r[0],
+                'horse_number': r[1],
+                'gate': r[2],
+                'finish_position': r[3],
+            }
+            for r in rows
+        ]
+        return jsonify(entries)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
 # モデルをグローバルにキャッシュ
 model = None
 feature_columns = None
