@@ -824,6 +824,40 @@ def sonogo_stats(race_id):
         conn.close()
 
 
+@app.route('/sonogo/horse/<horse_id>', methods=['GET'])
+def sonogo_horse_stats(horse_id):
+    """指定馬の「after日より後のJRA競馬」成績 [1着,2着,3着,4着以下] を返す"""
+    after = request.args.get('after')
+    if not after:
+        return jsonify({'error': 'after is required'}), 400
+
+    conn = get_analysis_connection()
+    try:
+        jra_cond = ' OR '.join(['course LIKE ?'] * len(JRA_COURSE_NAMES))
+        jra_params = [f'%{name}%' for name in JRA_COURSE_NAMES]
+
+        counts = [0, 0, 0, 0]
+        cursor = conn.execute(
+            f'''
+            SELECT finish_position FROM horse_data_dtl
+            WHERE horse_id = ? AND race_date > ?
+              AND finish_position IS NOT NULL
+              AND ({jra_cond})
+            ''',
+            [horse_id, after] + jra_params,
+        )
+        for (position,) in cursor:
+            if position is None or position < 1:
+                continue
+            counts[min(position, 4) - 1] += 1
+
+        return jsonify(counts)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
 # モデルをグローバルにキャッシュ
 model = None
 feature_columns = None

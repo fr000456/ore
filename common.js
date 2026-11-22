@@ -210,15 +210,21 @@ async function sonogo() {
     }
     const horseId = match[1].trim();
 
-    // awaitでHTML取得
-    const html = await getHtmlFromMap(horseId);
-    setIndex(html);
-
     // テーブル詳細更新
     await changeResultTableDtl(a, index);
 
-    // 成績値算出して反映
-    const seisekiVal = getSonogoSeisekiVal(html, raceDate);
+    // DBから「その後」成績を取得して反映
+    let seisekiVal = [0, 0, 0, 0];
+    try {
+      const res = await fetch(
+        `http://localhost:5000/sonogo/horse/${horseId}?after=${encodeURIComponent(raceDate)}`,
+      );
+      if (res.ok) {
+        seisekiVal = await res.json();
+      }
+    } catch (e) {
+      console.error("sonogo horse fetch error:", e);
+    }
     addSeiseki($("#sonogoTd" + index), seisekiVal);
   }
 }
