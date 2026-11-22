@@ -114,7 +114,7 @@
     const snapshotId = `result-${raceId}-${hash}`;
     const sentKey = `raceEntrySaved:result:${raceId}`;
     if (hasSavedRaceSnapshot(sentKey, snapshotId)) {
-      return "already_saved";
+      return { status: "already_saved", race };
     }
 
     const response = await new Promise((resolve, reject) => {
@@ -156,7 +156,116 @@
     }
 
     markRaceSnapshotSaved(sentKey, snapshotId);
-    return "saved";
+    return { status: "saved", race };
+  }
+
+  // 結果表から馬IDを収集（重複除去）
+  function collectHorseIds(table) {
+    const ids = [];
+    table.querySelectorAll('a[href*="/horse/"]').forEach((a) => {
+      const match = (a.getAttribute("href") || "").match(
+        /horse\/([A-Za-z0-9-]+)/,
+      );
+      if (match && !ids.includes(match[1])) ids.push(match[1]);
+    });
+    return ids;
+  }
+
+  // 'YYYY/MM/DD' の翌日を返す（今回のレースを保存対象に含めるため）
+  function nextDay(dateStr) {
+    const [y, m, d] = dateStr.split("/").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d + 1));
+    return `${dt.getUTCFullYear()}/${String(dt.getUTCMonth() + 1).padStart(2, "0")}/${String(dt.getUTCDate()).padStart(2, "0")}`;
+  }
+
+  // kaiseki.js の saveAllHorsesForRace と同じロジック:
+  // 隠しiframeで馬ページを1頭ずつ描画させ、kaiseki.js側の
+  // handleIframeHorsePage が /save_horse_for_race へPOST→postMessageで結果を受け取る
+  async function saveAllHorsesForRace(horseIds, cutoffDate, statusEl) {
+    const results = { saved: 0, skipped: 0, failed: [] };
+
+    let iframe = document.getElementById("horseSaveFrame");
+    if (!iframe) {
+      iframe = document.createElement("iframe");
+      iframe.id = "horseSaveFrame";
+      iframe.style.position = "fixed";
+      iframe.style.width = "1px";
+      iframe.style.height = "1px";
+      iframe.style.left = "-9999px";
+      iframe.style.top = "-9999px";
+      iframe.style.visibility = "hidden";
+      document.body.appendChild(iframe);
+    }
+
+    for (let i = 0; i < horseIds.length; i++) {
+      const horseId = horseIds[i];
+      statusEl.textContent = `[${i + 1}/${horseIds.length}頭] 馬データ描画・保存中... (${horseId})`;
+
+      try {
+        const result = await new Promise((resolve) => {
+          let resolved = false;
+
+          const onMessage = (event) => {
+            if (
+              event.data?.type === "horse_saved_from_iframe" &&
+              event.data.horseId === horseId
+            ) {
+              window.removeEventListener("message", onMessage);
+              resolved = true;
+              resolve(event.data);
+            }
+          };
+          window.addEventListener("message", onMessage);
+
+          // タイムアウト監視（12秒）
+          setTimeout(() => {
+            if (!resolved) {
+              window.removeEventListener("message", onMessage);
+              resolve({
+                success: false,
+                error: "タイムアウト（描画が完了しませんでした）",
+              });
+            }
+          }, 12000);
+
+          iframe.src = `https://db.netkeiba.com/horse/${horseId}/?from_shutuba=1&race_date=${encodeURIComponent(cutoffDate)}`;
+        });
+
+        if (!result.success) {
+          results.failed.push({ horseId, reason: result.error });
+        } else if (result.result?.skipped) {
+          results.skipped++;
+        } else {
+          results.saved++;
+        }
+      } catch (error) {
+        console.error(`[horse save] ${horseId} 失敗:`, error);
+        results.failed.push({ horseId, reason: error.message });
+      }
+
+      // アクセス制限防止のためのインターバル（約1秒）
+      if (i < horseIds.length - 1) {
+        statusEl.textContent = `[${i + 1}/${horseIds.length}頭] 待機中...`;
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+
+    if (iframe && iframe.parentNode) {
+      iframe.parentNode.removeChild(iframe);
+    }
+
+    // 保存完了後、horseHtmlCache を破棄して最新DBデータを読めるようにする
+    if (typeof horseHtmlCache !== "undefined") {
+      horseIds.forEach((id) => delete horseHtmlCache[id]);
+    }
+
+    let summary = ` / 馬データ: 更新${results.saved}頭 / スキップ${results.skipped}頭`;
+    if (results.failed.length > 0) {
+      summary += ` / 失敗${results.failed.length}頭`;
+      console.warn("[horse save] 失敗した馬:", results.failed);
+    }
+    statusEl.textContent = summary;
+    return results;
   }
 
   function addResultSaveButton(table) {
@@ -181,9 +290,23 @@
       status.textContent = "保存中...";
       try {
         const saveResult = await saveResultRacePage(table);
-        status.textContent = saveResult === "already_saved"
-          ? "保存成功（同一内容は保存済み）"
-          : "保存成功";
+        status.textContent = saveResult.status === "already_saved"
+          ? "保存成功（同一内容は保存済み） / 馬データ取得準備中..."
+          : "保存成功 / 馬データ取得準備中...";
+
+        // 出走馬の馬詳細（プロフィール＋過去走）を kaiseki.js と同じ
+        // iframe描画待ちロジックで保存。カットオフはレース翌日とし、
+        // 今回のレース結果も horse_data_dtl に含める。
+        const horseIds = collectHorseIds(table);
+        if (horseIds.length === 0) {
+          status.textContent += "（出走馬IDが見つかりません）";
+        } else {
+          await saveAllHorsesForRace(
+            horseIds,
+            nextDay(saveResult.race.race_date),
+            status,
+          );
+        }
       } catch (error) {
         console.error("[race save] 結果保存失敗", error);
         status.textContent = "保存失敗";
