@@ -275,6 +275,35 @@
 
     for (let i = 0; i < horseIds.length; i++) {
       const horseId = horseIds[i];
+
+      // DB事前チェック: raceDateより前の過去走が保存済みならnetkeibaにアクセスせずスキップ
+      try {
+        const statusRes = await fetch(
+          `http://localhost:5000/horse_save_status/${horseId}?before=${encodeURIComponent(raceDate)}`,
+        );
+        if (statusRes.ok) {
+          const status = await statusRes.json();
+          if (status.skip) {
+            results.skipped++;
+            results.skippedDetails.push(
+              `${horseId} (saved_through:${status.saved_through_date} >= raceDate:${raceDate})`,
+            );
+            console.log(
+              `[horse save] ${horseId} 既存スキップ: 登録済み日付=${status.saved_through_date}, 今回日付=${raceDate}`,
+            );
+            statusEl.text(
+              `[${i + 1}/${horseIds.length}頭] 既存データのためスキップ (${horseId})`,
+            );
+            continue;
+          }
+        }
+      } catch (e) {
+        console.warn(
+          `[horse save] ${horseId} ステータス取得失敗、通常保存にフォールバック:`,
+          e,
+        );
+      }
+
       statusEl.text(`[${i + 1}/${horseIds.length}頭] 馬データ描画・保存中... (${horseId})`);
 
       try {

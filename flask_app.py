@@ -36,6 +36,17 @@ def get_analysis_connection():
     return conn
 
 
+def ensure_saved_through_column():
+    """horse_data_hd.saved_through_date カラムを必要に応じて追加"""
+    conn = get_analysis_connection()
+    try:
+        cols = [r[1] for r in conn.execute('PRAGMA table_info(horse_data_hd)')]
+        if 'saved_through_date' not in cols:
+            conn.execute('ALTER TABLE horse_data_hd ADD COLUMN saved_through_date TEXT')
+    finally:
+        conn.close()
+
+
 def race_has_recorded_winner(race_id):
     """Return whether the analysis DB has a recorded winner for this race."""
     connection = get_analysis_connection()
@@ -511,6 +522,12 @@ def save_horse_for_race():
                 # 出走数比較（ただし horse_html.db にまだHTMLがない場合は保存を継続する）
                 if not force and db_race_count >= race_count and html_exists:
                     print(f"⏩ [save_horse_for_race] {horse_id} スキップ (DB出走数:{db_race_count} >= HTML出走数:{race_count})", flush=True)
+                    # スキップ時も「shutuba_dateより前は網羅済み」を記録
+                    analysis_conn.execute('''
+                        UPDATE horse_data_hd
+                        SET saved_through_date = MAX(COALESCE(saved_through_date, ''), ?)
+                        WHERE horse_id = ?
+                    ''', (shutuba_date, horse_id))
                     return jsonify({
                         'message': f'{horse_id} skipped (db={db_race_count} >= html={race_count})',
                         'skipped': True,
@@ -595,6 +612,13 @@ def save_horse_for_race():
                         saved_count += 1
                     except Exception:
                         continue
+
+                # 保存成功時も「shutuba_dateより前は網羅済み」を記録
+                analysis_conn.execute('''
+                    UPDATE horse_data_hd
+                    SET saved_through_date = MAX(COALESCE(saved_through_date, ''), ?)
+                    WHERE horse_id = ?
+                ''', (shutuba_date, horse_id))
 
         except sqlite3.Error as e:
             app.logger.exception('save_horse_for_race: DB error for %s', horse_id)
@@ -852,6 +876,45 @@ def sonogo_horse_stats(horse_id):
             counts[min(position, 4) - 1] += 1
 
         return jsonify(counts)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route('/horse_save_status/<horse_id>', methods=['GET'])
+def horse_save_status(horse_id):
+    """saved_through_date が before 以降なら、beforeより前の過去走は保存済みと判定する"""
+    before = request.args.get('before')
+    if not before:
+        return jsonify({'error': 'before is required'}), 400
+
+    conn = get_analysis_connection()
+    try:
+        row = conn.execute(
+            'SELECT saved_through_date FROM horse_data_hd WHERE horse_id = ?',
+            (horse_id,),
+        ).fetchone()
+        saved_through = row[0] if row else None
+
+        # horse_html.db にHTMLが残っているかも確認（なければスキップ不可）
+        html_exists = False
+        try:
+            with get_connection() as html_conn:
+                html_exists = html_conn.execute(
+                    'SELECT 1 FROM horse_html WHERE horse_id = ?',
+                    (horse_id,),
+                ).fetchone() is not None
+        except Exception:
+            pass
+
+        skip = bool(saved_through and saved_through >= before and html_exists)
+        return jsonify({
+            'horse_id': horse_id,
+            'before': before,
+            'saved_through_date': saved_through,
+            'skip': skip,
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
@@ -1789,5 +1852,6 @@ def predict_single():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
+    ensure_saved_through_column()
     init_db()
     app.run(host='127.0.0.1', port=5000, debug=True, threaded=True)

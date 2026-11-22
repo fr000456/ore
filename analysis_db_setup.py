@@ -41,7 +41,8 @@ def init_analysis_db():
                 horse_name TEXT NOT NULL,
                 sire TEXT,
                 dam TEXT,
-                banushi TEXT
+                banushi TEXT,
+                saved_through_date TEXT
             )
         ''')
         print("✅ horse_data_hd テーブル作成完了")
