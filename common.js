@@ -152,7 +152,6 @@ async function getHtmlFromMap(horseId) {
 }
 
 // 非同期で「その後」の成績を集計してテーブルに反映する関数
-var totalArray = new Array();
 async function changeSonogoFunc(a, index) {
   const href = a.attr("href") || "";
   const raceId = (href.match(/\/race\/(\d{12})\//) || href.match(/race_id=(\d{12})/) || [])[1];
@@ -176,15 +175,6 @@ async function changeSonogoFunc(a, index) {
     .find("td")
     .eq(eizouIndex)
     .replaceWith(result);
-}
-
-function addTotalVal(html, sonogoRaceDate, totalVal) {
-  setIndex(html);
-  var seisekiVal = getSonogoSeisekiVal(html, sonogoRaceDate);
-  totalVal[0] = totalVal[0] + seisekiVal[0];
-  totalVal[1] = totalVal[1] + seisekiVal[1];
-  totalVal[2] = totalVal[2] + seisekiVal[2];
-  totalVal[3] = totalVal[3] + seisekiVal[3];
 }
 
 function setRaceDate() {
@@ -370,34 +360,6 @@ function getSeisekiVal(data, tgtIndex, tgtVal) {
   return result;
 }
 
-function getSeisekiValNot(data, tgtIndex, seiseki) {
-  var allResult = getSeisekiVal(data, tgtIndex, []);
-  var data = $(data);
-
-  return [
-    allResult[0] - seiseki[0],
-    allResult[1] - seiseki[1],
-    allResult[2] - seiseki[2],
-    allResult[3] - seiseki[3],
-  ];
-}
-
-function getMultiSeisekiVal(data, tgtIndex, tgtIndex2, tgtVal, tgtVal2) {
-  var result = [0, 0, 0, 0];
-  var data = $(data);
-
-  var tgtTr = data
-    .find("td:eq(" + tgtIndex + "):contains(" + tgtVal + ")")
-    .parent()
-    .find("td:eq(" + tgtIndex2 + "):contains(" + tgtVal2 + ")")
-    .parent();
-  for (var j = 0; j < tgtTr.length; j++) {
-    result = getTyakujun(result, tgtTr.eq(j));
-  }
-
-  return result;
-}
-
 function getTyakujun(result, data) {
   //コース違い
   if (
@@ -411,15 +373,6 @@ function getTyakujun(result, data) {
   }
   result[tyakujun - 1]++;
 
-  return result;
-}
-
-function getSonogoSeisekiVal(data, tgtDate) {
-  var result = [0, 0, 0, 0];
-  var data = $("<div>").html(data).find("#data").find("tbody").find("tr");
-  for (var i = 0; i < data.length; i++) {
-    result = getSonogoTyakujun(result, data.eq(i), tgtDate);
-  }
   return result;
 }
 
@@ -441,33 +394,6 @@ function isJRA(data) {
     }
   }
   return false;
-}
-
-function getSonogoTyakujun(result, data, tgtDate) {
-  var date1 = data
-    .find("td")
-    .eq(hidukeIndex)
-    .text()
-    .trim()
-    .slice(-10)
-    .split("/");
-  var date2 = tgtDate.split("/");
-
-  //日付が過去
-  if (kankaku(date1, date2) <= 0) {
-    return result;
-  }
-  //地方競馬場
-  if (!isJRA(data)) {
-    return result;
-  }
-
-  var tyakujun = data.find("td:eq(" + tyakuIndex + ")").text();
-  if (tyakujun > 3) {
-    tyakujun = 4;
-  }
-  result[tyakujun - 1]++;
-  return result;
 }
 
 function getRank(raceName) {
