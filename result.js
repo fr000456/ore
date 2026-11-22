@@ -164,7 +164,7 @@
     const ids = [];
     table.querySelectorAll('a[href*="/horse/"]').forEach((a) => {
       const match = (a.getAttribute("href") || "").match(
-        /horse\/([A-Za-z0-9-]+)/,
+        /horse\/([A-Za-z0-9-]*\d[A-Za-z0-9-]*)/,
       );
       if (match && !ids.includes(match[1])) ids.push(match[1]);
     });
