@@ -296,9 +296,12 @@ def parse_horse_html(html, horse_id):
                 race_link = cols[4].find('a')
                 if race_link:
                     href = race_link['href']
-                    # race_idをURLから抽出
+                    # race_idをURLから抽出（海外レースは英数字混じりのID）
                     match = href.split('/race/')[-1].split('/')[0]
-                    race_info['race_id'] = int(match) if match.isdigit() else None
+                    if re.fullmatch(r'[0-9A-Za-z]{12}', match):
+                        race_info['race_id'] = (
+                            int(match) if match.isdigit() else match
+                        )
 
                 # 頭数
                 race_info['field_size'] = int(cols[6].text.strip()) if cols[6].text.strip().isdigit() else None
