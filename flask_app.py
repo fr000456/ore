@@ -807,7 +807,7 @@ JRA_COURSE_NAMES = [
 
 @app.route('/sonogo/<race_id>', methods=['GET'])
 def sonogo_stats(race_id):
-    """指定レースの出走馬全頭の「その後」成績 [1着,2着,3着,4着以下] を返す"""
+    """指定レースの出走馬全頭の「その後」成績と、データ未更新馬数を返す"""
     try:
         race_id_int = int(race_id)
     except (TypeError, ValueError):
@@ -820,10 +820,21 @@ def sonogo_stats(race_id):
             (race_id_int,),
         ).fetchall()
         if not rows:
-            return jsonify([0, 0, 0, 0])
+            return jsonify({'counts': [0, 0, 0, 0], 'stale_count': 0})
 
         race_date = rows[0][0]
         horse_ids = {r[1] for r in rows}
+
+        placeholders = ','.join('?' for _ in horse_ids)
+        saved_rows = conn.execute(
+            f'SELECT horse_id, saved_through_date FROM horse_data_hd WHERE horse_id IN ({placeholders})',
+            list(horse_ids),
+        ).fetchall()
+        saved_through = {r[0]: r[1] for r in saved_rows}
+        stale_count = sum(
+            1 for hid in horse_ids
+            if not saved_through.get(hid) or saved_through[hid] <= race_date
+        )
 
         jra_cond = ' OR '.join(['course LIKE ?'] * len(JRA_COURSE_NAMES))
         jra_params = [f'%{name}%' for name in JRA_COURSE_NAMES]
@@ -844,7 +855,7 @@ def sonogo_stats(race_id):
                     continue
                 counts[min(position, 4) - 1] += 1
 
-        return jsonify(counts)
+        return jsonify({'counts': counts, 'stale_count': stale_count})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:

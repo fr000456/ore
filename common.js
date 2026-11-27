@@ -157,11 +157,18 @@ async function changeSonogoFunc(a, index) {
   const raceId = (href.match(/\/race\/(\d{12})\//) || href.match(/race_id=(\d{12})/) || [])[1];
 
   let counts = [0, 0, 0, 0];
+  let staleCount = 0;
   if (raceId) {
     try {
       const res = await fetch(`http://localhost:5000/sonogo/${raceId}`);
       if (res.ok) {
-        counts = await res.json();
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          counts = data;
+        } else if (data.counts) {
+          counts = data.counts;
+          staleCount = data.stale_count || 0;
+        }
       }
     } catch (e) {
       console.error("sonogo fetch error:", e);
@@ -169,7 +176,7 @@ async function changeSonogoFunc(a, index) {
   }
 
   // 結果をテーブルに反映
-  const result = $("<td>", { text: getSeisekiTxt(counts) });
+  const result = $("<td>", { text: getSeisekiTxt(counts) + (staleCount > 0 ? " ⚠️" : "") });
   $(".db_h_race_results tbody tr")
     .eq(index)
     .find("td")
